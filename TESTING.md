@@ -31,4 +31,12 @@ Run `./scripts/test.sh` for core tests and `./scripts/build.sh` for the native A
 - Review correction: resize hit testing chooses the nearest handle, with exact-handle regression cases on 1pt, 5pt, and 10pt rectangles; handles only display in Area mode.
 - UNVERIFIED: native rectangle pointer accuracy and handle visibility; included in final manual acceptance.
 
+## Slice 6
+
+- PASS: 29 core tests and native Debug build. Conversion coverage includes 2x backing pixels, 50%/200% scale, known-distance calibration, explicit confirmation gating, invalid/nonfinite/overflow inputs, consistent display/clipboard formatting, and local preference recovery/restoration.
+- PASS: native scale popover rejects 0%, accepts 200%, and updates the visible scale context. A ruler drag pair at y=300 and y=500 shows 6.25rem with a 16px root; selecting its label exposes the same value and enables Copy. A 320 by 160 screen-point area shows 10 × 5 rem at that calibration.
+- Visual verification improvement: naming the panel made screenshots available. Its screenshot confirmed the guide gap, ruler positions, and readable measurement label; the tool picker label was cramped, so its redundant visible title was removed.
+- IMPLEMENTED: all four units, known-size/percentage calibration, Width/Height/Both output in the selected unit, shared root size in Settings/calibration, and local preference validation. Calibration stays in memory and does not silently assume CSS equivalence.
+- UNVERIFIED: clipboard round trip in another native app, all calibration input focus paths, mixed-monitor backing scales, and the remaining system scenarios listed above.
+
 Do not equate a successful build or a visible accessibility tree with a completed visual acceptance test.

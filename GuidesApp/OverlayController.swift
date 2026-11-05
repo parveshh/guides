@@ -10,18 +10,28 @@ final class EditorModel {
     var document = MeasurementDocument(size: .zero)
     var history = DocumentHistory()
     var areaDimension: AreaDimension = .both
-    var canCopy: Bool {
-        document.selectedGap != nil || (document.isAreaSelected && (document.area?.rect.width ?? 0) > 0 && (document.area?.rect.height ?? 0) > 0)
-    }
-    var selectedText: String {
-        if document.isAreaSelected, let rect = document.area?.rect {
-            switch areaDimension {
-            case .width: return MeasurementText.screenPoints(rect.width)
-            case .height: return MeasurementText.screenPoints(rect.height)
-            case .both: return "\(MeasurementText.number(rect.width)) × \(MeasurementText.number(rect.height)) screen pt"
-            }
+    var calibration = Calibration()
+    var unit: MeasurementUnit = .screenPoints
+    var backingFactor: CGFloat = 1
+    var copyText: String? {
+        if document.isAreaSelected, let rect = document.area?.rect, rect.width > 0, rect.height > 0 {
+            return MeasurementEngine.areaText(rect, dimension: areaDimension, unit: unit,
+                calibration: calibration, backingFactor: backingFactor)
         }
-        return document.selectedGap.map { MeasurementText.screenPoints($0.distance) } ?? "Select a distance"
+        return document.selectedGap.flatMap { MeasurementEngine.text($0.distance, unit: unit,
+            calibration: calibration, backingFactor: backingFactor) }
+    }
+    var canCopy: Bool { copyText != nil }
+    var selectedText: String { copyText ?? "Select a measurement" }
+    var contextText: String {
+        if !unit.requiresCalibration { return "Manual · \(unit.rawValue)" }
+        return "Manual · \(MeasurementText.number(calibration.pointsPerPixel * 100))% scale · \(MeasurementText.number(calibration.rootPixels))px/rem"
+    }
+    func text(_ distance: CGFloat) -> String {
+        MeasurementEngine.text(distance, unit: unit, calibration: calibration, backingFactor: backingFactor) ?? "Unavailable"
+    }
+    func areaText(_ rect: CGRect) -> String {
+        MeasurementEngine.areaText(rect, dimension: .both, unit: unit, calibration: calibration, backingFactor: backingFactor) ?? "Unavailable"
     }
 }
 
@@ -47,10 +57,20 @@ final class OverlayPanel: NSPanel {
 @MainActor
 final class OverlayController {
     let model = EditorModel()
+    private let preferences: GuidesPreferences
     private var panel: OverlayPanel?
     private var canvas: OverlayCanvas?
     private var controls: NSHostingView<OverlayControls>?
     private var previousApplication: NSRunningApplication?
+
+    init(preferences: GuidesPreferences) {
+        self.preferences = preferences
+        model.calibration.setRootPixels(preferences.rootPixels)
+        preferences.onRootChange = { [weak self] value in
+            self?.model.calibration.setRootPixels(value)
+            self?.refresh()
+        }
+    }
 
     func edit(_ tool: MeasurementTool) {
         canvas?.cancelGesture()
@@ -65,9 +85,12 @@ final class OverlayController {
         if model.document.size != screen.frame.size {
             model.document = MeasurementDocument(size: screen.frame.size)
             model.history = DocumentHistory()
+            model.calibration = Calibration(rootPixels: preferences.rootPixels)
+            model.unit = .screenPoints
         }
         panel?.setFrame(screen.frame, display: true)
         canvas?.usableRect = DisplayGeometry(frame: screen.frame).localRect(fromGlobal: screen.visibleFrame)
+        model.backingFactor = screen.convertRectToBacking(CGRect(origin: screen.frame.origin, size: CGSize(width: 1, height: 1))).width
         panel?.editing = true
         panel?.ignoresMouseEvents = false
         refresh()
@@ -104,6 +127,7 @@ final class OverlayController {
     private func createPanel(screen: NSScreen) {
         let panel = OverlayPanel(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel],
                                  backing: .buffered, defer: false)
+        panel.title = "Guides Measurements"
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false
@@ -128,6 +152,12 @@ final class OverlayController {
         let controls = NSHostingView(rootView: OverlayControls(model: model,
             onTool: { [weak self] tool in self?.canvas?.cancelGesture(); self?.model.presentation.edit(tool); self?.refresh() },
             onCopy: { [weak self] in self?.copySelection() },
+            onUnit: { [weak self] unit in self?.model.unit = unit; self?.refresh() },
+            onCalibration: { [weak self] calibration in
+                self?.model.calibration = calibration
+                self?.preferences.setRootPixels(calibration.rootPixels)
+                self?.refresh()
+            },
             onUndo: { [weak self] in self?.undo() }, onRedo: { [weak self] in self?.redo() },
             onPin: { [weak self] in self?.pin() }, onHide: { [weak self] in self?.hide() }))
         controls.translatesAutoresizingMaskIntoConstraints = false
@@ -135,8 +165,8 @@ final class OverlayController {
         NSLayoutConstraint.activate([
             controls.centerXAnchor.constraint(equalTo: root.centerXAnchor),
             controls.topAnchor.constraint(equalTo: root.topAnchor, constant: 62),
-            controls.widthAnchor.constraint(equalToConstant: 970),
-            controls.heightAnchor.constraint(equalToConstant: 60)
+            controls.widthAnchor.constraint(equalToConstant: 780),
+            controls.heightAnchor.constraint(equalToConstant: 104)
         ])
         panel.contentView = root
         self.panel = panel
@@ -165,52 +195,13 @@ final class OverlayController {
     }
 
     private func copySelection() {
-        guard model.canCopy else { return }
+        guard let text = model.copyText else { return }
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(model.selectedText, forType: .string)
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     private func refresh() {
         controls?.isHidden = model.presentation.mode != .editing
         canvas?.needsDisplay = true
-    }
-}
-
-private struct OverlayControls: View {
-    var model: EditorModel
-    var onTool: (MeasurementTool) -> Void
-    var onCopy: () -> Void
-    var onUndo: () -> Void
-    var onRedo: () -> Void
-    var onPin: () -> Void
-    var onHide: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "ruler").foregroundStyle(.cyan)
-            Picker("Tool", selection: Binding(get: { model.presentation.tool }, set: { onTool($0) })) {
-                ForEach(MeasurementTool.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }.pickerStyle(.segmented).frame(width: 150)
-            Text("Screen pt").font(.caption).foregroundStyle(.secondary)
-            if model.document.isAreaSelected {
-                Picker("Dimension", selection: Binding(get: { model.areaDimension }, set: { model.areaDimension = $0 })) {
-                    ForEach(AreaDimension.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                }.frame(width: 100)
-            }
-            Text(model.selectedText).font(.system(.caption, design: .monospaced))
-                .lineLimit(1).frame(minWidth: 110)
-            Button("Copy", action: onCopy).disabled(!model.canCopy)
-            Button(action: onUndo) { Image(systemName: "arrow.uturn.backward") }
-                .disabled(!model.history.canUndo).help("Undo (⌘Z)").accessibilityLabel("Undo")
-            Button(action: onRedo) { Image(systemName: "arrow.uturn.forward") }
-                .disabled(!model.history.canRedo).help("Redo (⇧⌘Z)").accessibilityLabel("Redo")
-            Spacer()
-            Button("Pin", systemImage: "pin", action: onPin)
-            Button("Hide", systemImage: "xmark", action: onHide)
-        }
-        .padding(12)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.25)))
-        .padding(2)
     }
 }

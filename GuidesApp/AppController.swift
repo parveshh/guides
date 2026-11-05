@@ -10,7 +10,8 @@ extension KeyboardShortcuts.Name {
 @MainActor
 final class AppController: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
-    private let overlay = OverlayController()
+    private let preferences = GuidesPreferences()
+    private lazy var overlay = OverlayController(preferences: preferences)
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -55,11 +56,11 @@ final class AppController: NSObject, NSApplicationDelegate {
     @objc private func showSettings() {
         overlay.hide()
         if settingsWindow == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 150),
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 240),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
             window.title = "Guides Settings"
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: SettingsView())
+            window.contentView = NSHostingView(rootView: SettingsView(preferences: preferences))
             window.center()
             settingsWindow = window
         }
@@ -69,13 +70,34 @@ final class AppController: NSObject, NSApplicationDelegate {
 }
 
 private struct SettingsView: View {
+    var preferences: GuidesPreferences
+    @State private var rootText = ""
+    @State private var error: String?
+
     var body: some View {
         Form {
             KeyboardShortcuts.Recorder("Edit Guides:", name: .editGuides)
-            Text("Measure across your desktop. Pin to work underneath.")
+            TextField("Root font size (px):", text: $rootText).onSubmit { applyRoot() }
+            HStack {
+                Text("Used for rem conversion.").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("Apply", action: applyRoot)
+            }
+            if let error { Text(error).foregroundStyle(.red).font(.caption) }
+            Text("Measurements and calibration start fresh when Guides quits.")
                 .font(.caption).foregroundStyle(.secondary)
         }
         .padding(24)
-        .frame(width: 380)
+        .frame(width: 420)
+        .onAppear { rootText = String(Double(preferences.rootPixels)) }
+        .onChange(of: preferences.rootPixels) { _, value in rootText = String(Double(value)) }
+    }
+
+    private func applyRoot() {
+        guard let value = Double(rootText), preferences.setRootPixels(CGFloat(value)) else {
+            error = "Enter a positive, finite root font size."
+            return
+        }
+        error = nil
     }
 }

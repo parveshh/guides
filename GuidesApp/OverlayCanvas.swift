@@ -175,9 +175,9 @@ final class OverlayCanvas: NSView {
         for gap in gaps {
             let selected = Set(gap.ids) == Set(model.document.selection)
             let anchor = gap.axis == .vertical
-                ? CGPoint(x: gap.midpoint, y: usableRect.minY + 145)
+                ? CGPoint(x: gap.midpoint, y: usableRect.minY + 205)
                 : CGPoint(x: usableRect.minX + 88, y: gap.midpoint)
-            let text = MeasurementText.screenPoints(gap.distance)
+            let text = model.text(gap.distance)
             let rect = labelRect(text, centered: anchor)
             guard selected || !occupied.contains(where: { $0.intersects(rect) }) else { continue }
             occupied.append(rect)
@@ -188,7 +188,7 @@ final class OverlayCanvas: NSView {
             labels.append((rect, gap))
         }
         let text = model.presentation.mode == .pinned
-            ? "Pinned · Manual · Screen pt · Edit Guides to resume"
+            ? "Pinned · \(model.contextText) · Edit Guides to resume"
             : "H/V adds · Arrows nudge · ⇧ selects a pair · ⌘Z undo · Esc hides"
         let rect = labelRect(text, centered: CGPoint(x: usableRect.midX, y: usableRect.maxY - 24))
         drawLabel(text, rect: rect, selected: false)
@@ -201,7 +201,7 @@ final class OverlayCanvas: NSView {
         NSColor.black.withAlphaComponent(0.85).setStroke(); path.lineWidth = 3; path.stroke()
         (selected ? NSColor.systemYellow : NSColor.cyan).setStroke()
         path.lineWidth = 1 / (window?.backingScaleFactor ?? 1); path.stroke()
-        let text = "\(MeasurementText.number(area.rect.width)) × \(MeasurementText.number(area.rect.height)) screen pt"
+        let text = model.areaText(area.rect)
         drawLabel(text, rect: labelRect(text, centered: CGPoint(x: area.rect.midX, y: area.rect.minY - 18)), selected: selected)
         if selected, model.presentation.mode == .editing, model.presentation.tool == .area {
             for handle in AreaHandle.allCases {
