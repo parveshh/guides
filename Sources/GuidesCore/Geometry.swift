@@ -47,10 +47,12 @@ public struct GuideGap: Equatable, Sendable {
     public var ids: [UUID] { [first.id, second.id] }
 }
 
-public struct GuideDocument: Equatable, Sendable {
+public struct MeasurementDocument: Equatable, Sendable {
     public let size: CGSize
     public private(set) var guides: [Guide] = []
     public private(set) var selection: [UUID] = []
+    public private(set) var area: AreaMeasurement?
+    public private(set) var isAreaSelected = false
     public init(size: CGSize) { self.size = size }
 
     @discardableResult
@@ -59,6 +61,7 @@ public struct GuideDocument: Equatable, Sendable {
         let guide = Guide(axis: axis, position: min(max(position, 0), axis.limit(in: size)))
         guides.append(guide)
         selection = [guide.id]
+        isAreaSelected = false
         return guide.id
     }
 
@@ -69,10 +72,12 @@ public struct GuideDocument: Equatable, Sendable {
 
     public mutating func select(_ ids: [UUID]) {
         selection = ids.filter { id in guides.contains(where: { $0.id == id }) }
+        isAreaSelected = false
     }
 
     public mutating func selectGuide(_ id: UUID, extending: Bool) {
         guard let guide = guides.first(where: { $0.id == id }) else { return }
+        isAreaSelected = false
         guard extending else { selection = [id]; return }
         if selection.contains(id) { selection.removeAll { $0 == id }; return }
         if let anchor = selection.first, let other = guides.first(where: { $0.id == anchor }), other.axis == guide.axis {
@@ -81,14 +86,34 @@ public struct GuideDocument: Equatable, Sendable {
     }
 
     public mutating func deleteSelection() {
+        if isAreaSelected { area = nil; isAreaSelected = false }
         guides.removeAll { selection.contains($0.id) }
         selection = []
     }
 
-    public mutating func clear() { guides = []; selection = [] }
+    public mutating func clear() { guides = []; selection = []; area = nil; isAreaSelected = false }
+
+    public mutating func setArea(_ rect: CGRect, id: UUID? = nil) {
+        guard [rect.origin.x, rect.origin.y, rect.width, rect.height].allSatisfy(\.isFinite) else { return }
+        let bounded = AreaGeometry.rectangle(from: CGPoint(x: rect.minX, y: rect.minY),
+            to: CGPoint(x: rect.maxX, y: rect.maxY), within: size)
+        area = AreaMeasurement(id: id ?? area?.id ?? UUID(), rect: bounded)
+        isAreaSelected = true
+        selection = []
+    }
+
+    public mutating func selectArea() {
+        guard area != nil else { return }
+        selection = []
+        isAreaSelected = true
+    }
 
     public mutating func nudge(dx: CGFloat, dy: CGFloat) {
         guard dx.isFinite, dy.isFinite else { return }
+        if isAreaSelected, let area {
+            setArea(AreaGeometry.moved(area.rect, dx: dx, dy: dy, within: size))
+            return
+        }
         for axis in GuideAxis.allCases {
             let indices = guides.indices.filter { guides[$0].axis == axis && selection.contains(guides[$0].id) }
             guard !indices.isEmpty else { continue }
@@ -99,7 +124,9 @@ public struct GuideDocument: Equatable, Sendable {
         }
     }
 
-    public func hasSameContent(as other: GuideDocument) -> Bool { guides == other.guides && size == other.size }
+    public func hasSameContent(as other: MeasurementDocument) -> Bool {
+        guides == other.guides && area == other.area && size == other.size
+    }
 
     public var adjacentGaps: [GuideGap] {
         GuideAxis.allCases.flatMap { axis in

@@ -7,10 +7,21 @@ import SwiftUI
 @Observable
 final class EditorModel {
     var presentation = Presentation()
-    var document = GuideDocument(size: .zero)
+    var document = MeasurementDocument(size: .zero)
     var history = DocumentHistory()
+    var areaDimension: AreaDimension = .both
+    var canCopy: Bool {
+        document.selectedGap != nil || (document.isAreaSelected && (document.area?.rect.width ?? 0) > 0 && (document.area?.rect.height ?? 0) > 0)
+    }
     var selectedText: String {
-        document.selectedGap.map { MeasurementText.screenPoints($0.distance) } ?? "Select a distance"
+        if document.isAreaSelected, let rect = document.area?.rect {
+            switch areaDimension {
+            case .width: return MeasurementText.screenPoints(rect.width)
+            case .height: return MeasurementText.screenPoints(rect.height)
+            case .both: return "\(MeasurementText.number(rect.width)) × \(MeasurementText.number(rect.height)) screen pt"
+            }
+        }
+        return document.selectedGap.map { MeasurementText.screenPoints($0.distance) } ?? "Select a distance"
     }
 }
 
@@ -52,7 +63,7 @@ final class OverlayController {
         model.presentation.edit(tool)
         if panel == nil { createPanel(screen: screen) }
         if model.document.size != screen.frame.size {
-            model.document = GuideDocument(size: screen.frame.size)
+            model.document = MeasurementDocument(size: screen.frame.size)
             model.history = DocumentHistory()
         }
         panel?.setFrame(screen.frame, display: true)
@@ -124,7 +135,7 @@ final class OverlayController {
         NSLayoutConstraint.activate([
             controls.centerXAnchor.constraint(equalTo: root.centerXAnchor),
             controls.topAnchor.constraint(equalTo: root.topAnchor, constant: 62),
-            controls.widthAnchor.constraint(equalToConstant: 850),
+            controls.widthAnchor.constraint(equalToConstant: 970),
             controls.heightAnchor.constraint(equalToConstant: 60)
         ])
         panel.contentView = root
@@ -154,7 +165,7 @@ final class OverlayController {
     }
 
     private func copySelection() {
-        guard model.document.selectedGap != nil else { return }
+        guard model.canCopy else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(model.selectedText, forType: .string)
     }
@@ -181,9 +192,14 @@ private struct OverlayControls: View {
                 ForEach(MeasurementTool.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }.pickerStyle(.segmented).frame(width: 150)
             Text("Screen pt").font(.caption).foregroundStyle(.secondary)
+            if model.document.isAreaSelected {
+                Picker("Dimension", selection: Binding(get: { model.areaDimension }, set: { model.areaDimension = $0 })) {
+                    ForEach(AreaDimension.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }.frame(width: 100)
+            }
             Text(model.selectedText).font(.system(.caption, design: .monospaced))
                 .lineLimit(1).frame(minWidth: 110)
-            Button("Copy", action: onCopy).disabled(model.document.selectedGap == nil)
+            Button("Copy", action: onCopy).disabled(!model.canCopy)
             Button(action: onUndo) { Image(systemName: "arrow.uturn.backward") }
                 .disabled(!model.history.canUndo).help("Undo (⌘Z)").accessibilityLabel("Undo")
             Button(action: onRedo) { Image(systemName: "arrow.uturn.forward") }

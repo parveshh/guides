@@ -24,4 +24,11 @@ Run `./scripts/test.sh` for core tests and `./scripts/build.sh` for the native A
 - Review correction: a tested core key router rejects Command/Control fallthrough (including Command-H/V), restricts guide/delete modifiers, and defines arrow-step precedence.
 - UNVERIFIED: native keyboard behavior across all focus contexts and manual pointer/label accuracy; retained for the final acceptance pass.
 
+## Slice 5
+
+- PASS: 21 core tests (including all 8 resize handles) and native Debug build. Area tests cover reverse drags, display clamping, preserved size when moving, crossing the opposite corner, edge resizing, invalid input, nudging, and undoable replacement/deletion alongside guides.
+- IMPLEMENTED: area selection/move/resize, Width/Height/Both copying, and Escape restoring the pre-gesture document. Zero-size completed gestures restore the previous area rather than destroying it. The shared core document now represents both guides and an area.
+- Review correction: resize hit testing chooses the nearest handle, with exact-handle regression cases on 1pt, 5pt, and 10pt rectangles; handles only display in Area mode.
+- UNVERIFIED: native rectangle pointer accuracy and handle visibility; included in final manual acceptance.
+
 Do not equate a successful build or a visible accessibility tree with a completed visual acceptance test.

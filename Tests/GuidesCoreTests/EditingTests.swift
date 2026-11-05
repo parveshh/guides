@@ -3,7 +3,7 @@ import Testing
 @testable import GuidesCore
 
 @Test func extendedSelectionMeasuresOnlyParallelGuides() {
-    var doc = GuideDocument(size: CGSize(width: 100, height: 100))
+    var doc = MeasurementDocument(size: CGSize(width: 100, height: 100))
     let a = doc.add(axis: .vertical, position: 10)!
     let b = doc.add(axis: .vertical, position: 30)!
     let c = doc.add(axis: .vertical, position: 70)!
@@ -19,7 +19,7 @@ import Testing
 }
 
 @Test func groupedNudgingPreservesGapAtEdges() {
-    var doc = GuideDocument(size: CGSize(width: 100, height: 100))
+    var doc = MeasurementDocument(size: CGSize(width: 100, height: 100))
     let a = doc.add(axis: .vertical, position: 80)!
     let b = doc.add(axis: .vertical, position: 90)!
     doc.select([a, b]); doc.nudge(dx: 50, dy: 0)
@@ -30,7 +30,7 @@ import Testing
 }
 
 @Test func historyTreatsDragAsOneAction() {
-    var doc = GuideDocument(size: CGSize(width: 100, height: 100))
+    var doc = MeasurementDocument(size: CGSize(width: 100, height: 100))
     let id = doc.add(axis: .vertical, position: 10)!
     let before = doc
     for x in 11...80 { doc.move(id: id, to: CGFloat(x)) }
@@ -44,7 +44,7 @@ import Testing
 }
 
 @Test func selectionIsNotAnUndoActionAndNewEditDropsRedo() {
-    var doc = GuideDocument(size: CGSize(width: 100, height: 100))
+    var doc = MeasurementDocument(size: CGSize(width: 100, height: 100))
     let empty = doc
     _ = doc.add(axis: .vertical, position: 10)
     var history = DocumentHistory()
@@ -62,7 +62,7 @@ import Testing
 }
 
 @Test func clearAndDeleteCanBeUndone() {
-    var doc = GuideDocument(size: CGSize(width: 100, height: 100))
+    var doc = MeasurementDocument(size: CGSize(width: 100, height: 100))
     let a = doc.add(axis: .horizontal, position: 10)!
     _ = doc.add(axis: .vertical, position: 20)
     var history = DocumentHistory()

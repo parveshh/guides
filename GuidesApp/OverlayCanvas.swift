@@ -10,8 +10,14 @@ final class OverlayCanvas: NSView {
     var onCopy: (() -> Void)?
     var onUndo: (() -> Void)?
     var onRedo: (() -> Void)?
-    private var dragStart: GuideDocument?
+    private var dragStart: MeasurementDocument?
     private var draggingID: UUID?
+    private enum AreaDrag {
+        case create(start: CGPoint, id: UUID)
+        case move(start: CGPoint, rect: CGRect)
+        case resize(handle: AreaHandle, rect: CGRect)
+    }
+    private var areaDrag: AreaDrag?
     private var labels: [(CGRect, GuideGap)] = []
     private let rulerSize: CGFloat = 24
     override var isFlipped: Bool { true }
@@ -24,6 +30,7 @@ final class OverlayCanvas: NSView {
         guard let dragStart else { return false }
         model.document = dragStart
         self.dragStart = nil
+        areaDrag = nil
         draggingID = nil
         onChange?()
         return true
@@ -74,6 +81,24 @@ final class OverlayCanvas: NSView {
         guard model.presentation.mode == .editing else { return }
         window?.makeFirstResponder(self)
         let point = convert(event.locationInWindow, from: nil)
+        if model.presentation.tool == .area {
+            dragStart = model.document
+            if let area = model.document.area,
+               let handle = AreaGeometry.hitHandle(at: point, rect: area.rect) {
+                areaDrag = .resize(handle: handle, rect: area.rect)
+                model.document.selectArea()
+            } else if let area = model.document.area, area.rect.contains(point) {
+                areaDrag = .move(start: point, rect: area.rect)
+                model.document.selectArea()
+            } else {
+                let start = DisplayGeometry.clamp(point, to: bounds.size)
+                let id = UUID()
+                areaDrag = .create(start: start, id: id)
+                model.document.setArea(CGRect(origin: start, size: .zero), id: id)
+            }
+            onChange?()
+            return
+        }
         if model.presentation.tool == .guides, topRuler.contains(point) || leftRuler.contains(point) {
             dragStart = model.document
             let axis: GuideAxis = topRuler.contains(point) ? .horizontal : .vertical
@@ -91,6 +116,19 @@ final class OverlayCanvas: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        let current = DisplayGeometry.clamp(convert(event.locationInWindow, from: nil), to: bounds.size)
+        if let areaDrag {
+            switch areaDrag {
+            case .create(let start, let id):
+                model.document.setArea(AreaGeometry.rectangle(from: start, to: current, within: bounds.size), id: id)
+            case .move(let start, let rect):
+                model.document.setArea(AreaGeometry.moved(rect, dx: current.x - start.x, dy: current.y - start.y, within: bounds.size))
+            case .resize(let handle, let rect):
+                model.document.setArea(AreaGeometry.resized(rect, handle: handle, to: current, within: bounds.size))
+            }
+            onChange?()
+            return
+        }
         guard let id = draggingID, let guide = model.document.guides.first(where: { $0.id == id }) else { return }
         let point = DisplayGeometry.clamp(convert(event.locationInWindow, from: nil), to: bounds.size)
         model.document.move(id: id, to: guide.axis.position(of: point))
@@ -98,7 +136,13 @@ final class OverlayCanvas: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        if let dragStart { model.history.record(before: dragStart, after: model.document) }
+        if let dragStart {
+            if areaDrag != nil, let rect = model.document.area?.rect, rect.width == 0 || rect.height == 0 {
+                model.document = dragStart
+            }
+            model.history.record(before: dragStart, after: model.document)
+        }
+        areaDrag = nil
         draggingID = nil
         dragStart = nil
         onChange?()
@@ -111,6 +155,7 @@ final class OverlayCanvas: NSView {
         guard model.presentation.mode != .hidden else { return }
         labels.removeAll()
         if model.presentation.mode == .editing { drawRulers() }
+        drawArea()
         for guide in model.document.guides {
             let start = guide.axis == .horizontal ? CGPoint(x: 0, y: guide.position) : CGPoint(x: guide.position, y: 0)
             let end = guide.axis == .horizontal ? CGPoint(x: bounds.width, y: guide.position) : CGPoint(x: guide.position, y: bounds.height)
@@ -147,6 +192,25 @@ final class OverlayCanvas: NSView {
             : "H/V adds · Arrows nudge · ⇧ selects a pair · ⌘Z undo · Esc hides"
         let rect = labelRect(text, centered: CGPoint(x: usableRect.midX, y: usableRect.maxY - 24))
         drawLabel(text, rect: rect, selected: false)
+    }
+
+    private func drawArea() {
+        guard let area = model.document.area else { return }
+        let selected = model.document.isAreaSelected
+        let path = NSBezierPath(rect: area.rect)
+        NSColor.black.withAlphaComponent(0.85).setStroke(); path.lineWidth = 3; path.stroke()
+        (selected ? NSColor.systemYellow : NSColor.cyan).setStroke()
+        path.lineWidth = 1 / (window?.backingScaleFactor ?? 1); path.stroke()
+        let text = "\(MeasurementText.number(area.rect.width)) × \(MeasurementText.number(area.rect.height)) screen pt"
+        drawLabel(text, rect: labelRect(text, centered: CGPoint(x: area.rect.midX, y: area.rect.minY - 18)), selected: selected)
+        if selected, model.presentation.mode == .editing, model.presentation.tool == .area {
+            for handle in AreaHandle.allCases {
+                let point = handle.point(on: area.rect)
+                let handleRect = CGRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8)
+                NSColor.black.setFill(); handleRect.fill()
+                NSColor.systemYellow.setStroke(); NSBezierPath(rect: handleRect).stroke()
+            }
+        }
     }
 
     private var textAttributes: [NSAttributedString.Key: Any] {

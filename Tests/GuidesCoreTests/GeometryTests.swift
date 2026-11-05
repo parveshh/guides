@@ -15,7 +15,7 @@ func displayCoordinatesRoundTrip(frame: CGRect) {
 }
 
 @Test func gapsArePositiveAndAxisSpecific() {
-    var document = GuideDocument(size: CGSize(width: 1000, height: 800))
+    var document = MeasurementDocument(size: CGSize(width: 1000, height: 800))
     let a = document.add(axis: .vertical, position: 132)!
     let b = document.add(axis: .vertical, position: 100)!
     _ = document.add(axis: .horizontal, position: 200)
@@ -30,7 +30,7 @@ func displayCoordinatesRoundTrip(frame: CGRect) {
 }
 
 @Test func guideBoundsAndInvalidPositions() {
-    var document = GuideDocument(size: CGSize(width: 100, height: 80))
+    var document = MeasurementDocument(size: CGSize(width: 100, height: 80))
     let id = document.add(axis: .horizontal, position: -10)!
     #expect(document.guides[0].position == 0)
     document.move(id: id, to: 1000)
