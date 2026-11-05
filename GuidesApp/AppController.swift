@@ -24,7 +24,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(item("Hide Measurements", #selector(hideMeasurements)))
         let clearItem = item("Clear Measurements", #selector(clearMeasurements))
-        clearItem.isEnabled = false
+        clearItem.isEnabled = true
         menu.addItem(clearItem)
         menu.addItem(.separator())
         menu.addItem(item("Settings…", #selector(showSettings)))
@@ -49,7 +49,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     @objc private func editGuides() { overlay.edit(.guides) }
     @objc private func measureArea() { overlay.edit(.area) }
     @objc private func hideMeasurements() { overlay.hide() }
-    @objc private func clearMeasurements() {}
+    @objc private func clearMeasurements() { overlay.clear() }
     @objc private func quit() { NSApp.terminate(nil) }
 
     @objc private func showSettings() {

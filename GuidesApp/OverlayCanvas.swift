@@ -8,6 +8,8 @@ final class OverlayCanvas: NSView {
     var onEscape: (() -> Void)?
     var onChange: (() -> Void)?
     var onCopy: (() -> Void)?
+    var onUndo: (() -> Void)?
+    var onRedo: (() -> Void)?
     private var dragStart: GuideDocument?
     private var draggingID: UUID?
     private var labels: [(CGRect, GuideGap)] = []
@@ -17,19 +19,55 @@ final class OverlayCanvas: NSView {
     override var needsPanelToBecomeKey: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    func cancelOrHide() {
-        if let dragStart {
-            model.document = dragStart
-            self.dragStart = nil
-            draggingID = nil
-            onChange?()
-        } else { onEscape?() }
+    @discardableResult
+    func cancelGesture() -> Bool {
+        guard let dragStart else { return false }
+        model.document = dragStart
+        self.dragStart = nil
+        draggingID = nil
+        onChange?()
+        return true
+    }
+
+    func cancelOrHide() { if !cancelGesture() { onEscape?() } }
+
+    func handleCommand(_ event: NSEvent) -> Bool {
+        guard event.modifierFlags.contains(.command) else { return false }
+        switch event.charactersIgnoringModifiers?.lowercased() {
+        case "c": onCopy?(); return true
+        case "z":
+            if event.modifierFlags.contains(.shift) { onRedo?() } else { onUndo?() }
+            return true
+        default: return false
+        }
     }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 { cancelOrHide() }
-        else if event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "c" { onCopy?() }
-        else { super.keyDown(with: event) }
+        if handleCommand(event) { return }
+        if event.keyCode == 53 { cancelOrHide(); return }
+        guard model.presentation.mode == .editing else { return }
+        let flags = event.modifierFlags
+        guard let action = KeyboardEditing.action(keyCode: event.keyCode, characters: event.charactersIgnoringModifiers,
+            command: flags.contains(.command), control: flags.contains(.control),
+            option: flags.contains(.option), shift: flags.contains(.shift)) else {
+            super.keyDown(with: event); return
+        }
+        cancelGesture()
+        let before = model.document
+        switch action {
+        case .add(let axis):
+            guard let window else { return }
+            let point = DisplayGeometry(frame: window.frame).localPoint(fromGlobal: NSEvent.mouseLocation)
+            model.document.add(axis: axis, position: axis.position(of: point))
+        case .delete:
+            model.document.deleteSelection()
+        case .nudge(let dx, let dy, let precision):
+            let step: CGFloat = precision == .backingPixel ? convertFromBacking(NSSize(width: 1, height: 1)).width
+                : (precision == .tenPoints ? 10 : 1)
+            model.document.nudge(dx: CGFloat(dx) * step, dy: CGFloat(dy) * step)
+        }
+        model.history.record(before: before, after: model.document)
+        onChange?()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -47,7 +85,7 @@ final class OverlayCanvas: NSView {
         }), abs(guide.position - guide.axis.position(of: point)) <= 6 {
             dragStart = model.document
             draggingID = guide.id
-            model.document.select([guide.id])
+            model.document.selectGuide(guide.id, extending: event.modifierFlags.contains(.shift))
         } else { model.document.select([]) }
         onChange?()
     }
@@ -60,8 +98,10 @@ final class OverlayCanvas: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if let dragStart { model.history.record(before: dragStart, after: model.document) }
         draggingID = nil
         dragStart = nil
+        onChange?()
     }
 
     private var topRuler: CGRect { CGRect(x: usableRect.minX, y: usableRect.minY, width: usableRect.width, height: rulerSize) }
@@ -77,7 +117,11 @@ final class OverlayCanvas: NSView {
             line(from: start, to: end, selected: model.document.selection.contains(guide.id))
         }
         let selected = model.document.selectedGap
-        let gaps = model.document.adjacentGaps.sorted { a, b in
+        var availableGaps = model.document.adjacentGaps
+        if let selected, !availableGaps.contains(where: { Set($0.ids) == Set(selected.ids) }) {
+            availableGaps.append(selected)
+        }
+        let gaps = availableGaps.sorted { a, b in
             let aSelected = Set(a.ids) == Set(selected?.ids ?? [])
             let bSelected = Set(b.ids) == Set(selected?.ids ?? [])
             return aSelected && !bSelected
@@ -100,7 +144,7 @@ final class OverlayCanvas: NSView {
         }
         let text = model.presentation.mode == .pinned
             ? "Pinned · Manual · Screen pt · Edit Guides to resume"
-            : "Drag from a ruler · Click a distance to copy · Esc hides"
+            : "H/V adds · Arrows nudge · ⇧ selects a pair · ⌘Z undo · Esc hides"
         let rect = labelRect(text, centered: CGPoint(x: usableRect.midX, y: usableRect.maxY - 24))
         drawLabel(text, rect: rect, selected: false)
     }

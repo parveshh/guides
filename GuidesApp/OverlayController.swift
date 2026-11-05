@@ -8,6 +8,7 @@ import SwiftUI
 final class EditorModel {
     var presentation = Presentation()
     var document = GuideDocument(size: .zero)
+    var history = DocumentHistory()
     var selectedText: String {
         document.selectedGap.map { MeasurementText.screenPoints($0.distance) } ?? "Select a distance"
     }
@@ -17,6 +18,7 @@ final class EditorModel {
 final class OverlayPanel: NSPanel {
     var editing = false
     var onEscape: (() -> Void)?
+    var onCommand: ((NSEvent) -> Bool)?
     override var canBecomeKey: Bool { editing }
     override var canBecomeMain: Bool { false }
 
@@ -25,6 +27,8 @@ final class OverlayPanel: NSPanel {
             onEscape?()
             return
         }
+        if editing, event.type == .keyDown, event.modifierFlags.contains(.command),
+           !((firstResponder as? NSTextView)?.isFieldEditor ?? false), onCommand?(event) == true { return }
         super.sendEvent(event)
     }
 }
@@ -38,6 +42,7 @@ final class OverlayController {
     private var previousApplication: NSRunningApplication?
 
     func edit(_ tool: MeasurementTool) {
+        canvas?.cancelGesture()
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
                 ?? NSScreen.main else { return }
         let frontmost = NSWorkspace.shared.frontmostApplication
@@ -48,6 +53,7 @@ final class OverlayController {
         if panel == nil { createPanel(screen: screen) }
         if model.document.size != screen.frame.size {
             model.document = GuideDocument(size: screen.frame.size)
+            model.history = DocumentHistory()
         }
         panel?.setFrame(screen.frame, display: true)
         canvas?.usableRect = DisplayGeometry(frame: screen.frame).localRect(fromGlobal: screen.visibleFrame)
@@ -59,6 +65,7 @@ final class OverlayController {
     }
 
     func pin() {
+        canvas?.cancelGesture()
         model.presentation.pin()
         panel?.orderOut(nil)
         panel?.editing = false
@@ -69,6 +76,7 @@ final class OverlayController {
     }
 
     func hide() {
+        canvas?.cancelGesture()
         model.presentation.hide()
         panel?.editing = false
         panel?.orderOut(nil)
@@ -102,23 +110,47 @@ final class OverlayController {
         panel.onEscape = { [weak canvas] in canvas?.cancelOrHide() }
         canvas.onChange = { [weak self] in self?.refresh() }
         canvas.onCopy = { [weak self] in self?.copySelection() }
+        canvas.onUndo = { [weak self] in self?.undo() }
+        canvas.onRedo = { [weak self] in self?.redo() }
+        panel.onCommand = { [weak canvas] event in canvas?.handleCommand(event) ?? false }
         root.addSubview(canvas)
         let controls = NSHostingView(rootView: OverlayControls(model: model,
-            onTool: { [weak self] tool in self?.model.presentation.edit(tool); self?.refresh() },
+            onTool: { [weak self] tool in self?.canvas?.cancelGesture(); self?.model.presentation.edit(tool); self?.refresh() },
             onCopy: { [weak self] in self?.copySelection() },
+            onUndo: { [weak self] in self?.undo() }, onRedo: { [weak self] in self?.redo() },
             onPin: { [weak self] in self?.pin() }, onHide: { [weak self] in self?.hide() }))
         controls.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(controls)
         NSLayoutConstraint.activate([
             controls.centerXAnchor.constraint(equalTo: root.centerXAnchor),
             controls.topAnchor.constraint(equalTo: root.topAnchor, constant: 62),
-            controls.widthAnchor.constraint(equalToConstant: 740),
+            controls.widthAnchor.constraint(equalToConstant: 850),
             controls.heightAnchor.constraint(equalToConstant: 60)
         ])
         panel.contentView = root
         self.panel = panel
         self.canvas = canvas
         self.controls = controls
+    }
+
+    func clear() {
+        canvas?.cancelGesture()
+        let before = model.document
+        model.document.clear()
+        model.history.record(before: before, after: model.document)
+        refresh()
+    }
+
+    private func undo() {
+        canvas?.cancelGesture()
+        if let document = model.history.undo(current: model.document) { model.document = document }
+        refresh()
+    }
+
+    private func redo() {
+        canvas?.cancelGesture()
+        if let document = model.history.redo(current: model.document) { model.document = document }
+        refresh()
     }
 
     private func copySelection() {
@@ -137,6 +169,8 @@ private struct OverlayControls: View {
     var model: EditorModel
     var onTool: (MeasurementTool) -> Void
     var onCopy: () -> Void
+    var onUndo: () -> Void
+    var onRedo: () -> Void
     var onPin: () -> Void
     var onHide: () -> Void
 
@@ -150,6 +184,10 @@ private struct OverlayControls: View {
             Text(model.selectedText).font(.system(.caption, design: .monospaced))
                 .lineLimit(1).frame(minWidth: 110)
             Button("Copy", action: onCopy).disabled(model.document.selectedGap == nil)
+            Button(action: onUndo) { Image(systemName: "arrow.uturn.backward") }
+                .disabled(!model.history.canUndo).help("Undo (⌘Z)").accessibilityLabel("Undo")
+            Button(action: onRedo) { Image(systemName: "arrow.uturn.forward") }
+                .disabled(!model.history.canRedo).help("Redo (⇧⌘Z)").accessibilityLabel("Redo")
             Spacer()
             Button("Pin", systemImage: "pin", action: onPin)
             Button("Hide", systemImage: "xmark", action: onHide)

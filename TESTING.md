@@ -17,4 +17,11 @@ Run `./scripts/test.sh` for core tests and `./scripts/build.sh` for the native A
 - IMPLEMENTED: ruler drags create guides, dragging moves them, adjacent distances render and can be selected/copied; Escape restores a cancelled gesture.
 - UNVERIFIED: visual ruler placement and pointer accuracy on the native transparent canvas. These remain part of the final native acceptance pass; automated geometry checks are not a substitute for it.
 
+## Slice 4
+
+- PASS: 13 core tests and native Debug build. Added tests for nonadjacent same-axis selection, pair nudging at display edges, subpoint movement, one history entry per drag, selection changes excluded from history, redo invalidation, and undoable delete/clear.
+- IMPLEMENTED: H/V at pointer, arrow/Shift/Option nudging, Delete, Command-Z/Shift-Command-Z, toolbar undo/redo, and clear. A partial gesture is cancelled before changing mode or history. Hidden sessions retain their completed document.
+- Review correction: a tested core key router rejects Command/Control fallthrough (including Command-H/V), restricts guide/delete modifiers, and defines arrow-step precedence.
+- UNVERIFIED: native keyboard behavior across all focus contexts and manual pointer/label accuracy; retained for the final acceptance pass.
+
 Do not equate a successful build or a visible accessibility tree with a completed visual acceptance test.

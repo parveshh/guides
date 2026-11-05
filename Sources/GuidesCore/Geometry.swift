@@ -71,6 +71,36 @@ public struct GuideDocument: Equatable, Sendable {
         selection = ids.filter { id in guides.contains(where: { $0.id == id }) }
     }
 
+    public mutating func selectGuide(_ id: UUID, extending: Bool) {
+        guard let guide = guides.first(where: { $0.id == id }) else { return }
+        guard extending else { selection = [id]; return }
+        if selection.contains(id) { selection.removeAll { $0 == id }; return }
+        if let anchor = selection.first, let other = guides.first(where: { $0.id == anchor }), other.axis == guide.axis {
+            selection = [anchor, id]
+        } else { selection = [id] }
+    }
+
+    public mutating func deleteSelection() {
+        guides.removeAll { selection.contains($0.id) }
+        selection = []
+    }
+
+    public mutating func clear() { guides = []; selection = [] }
+
+    public mutating func nudge(dx: CGFloat, dy: CGFloat) {
+        guard dx.isFinite, dy.isFinite else { return }
+        for axis in GuideAxis.allCases {
+            let indices = guides.indices.filter { guides[$0].axis == axis && selection.contains(guides[$0].id) }
+            guard !indices.isEmpty else { continue }
+            let lower = -(indices.map { guides[$0].position }.min() ?? 0)
+            let upper = axis.limit(in: size) - (indices.map { guides[$0].position }.max() ?? 0)
+            let delta = min(max(axis == .horizontal ? dy : dx, lower), upper)
+            for index in indices { guides[index].position += delta }
+        }
+    }
+
+    public func hasSameContent(as other: GuideDocument) -> Bool { guides == other.guides && size == other.size }
+
     public var adjacentGaps: [GuideGap] {
         GuideAxis.allCases.flatMap { axis in
             let ordered = guides.filter { $0.axis == axis }.sorted {
