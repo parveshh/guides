@@ -64,7 +64,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     @objc private func showSettings() {
         overlay.hide()
         if settingsWindow == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 240),
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 300),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
             window.title = "Guides Settings"
             window.isReleasedWhenClosed = false
@@ -85,6 +85,11 @@ private struct SettingsView: View {
     var body: some View {
         Form {
             KeyboardShortcuts.Recorder("Edit Guides:", name: .editGuides)
+            Picker("Ruler background:", selection: Binding(get: { preferences.rulerAppearance }, set: { preferences.setRulerAppearance($0) })) {
+                ForEach(RulerAppearance.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }.pickerStyle(.segmented)
+            Text("Transparent keeps the numbers and ticks visible without a background.")
+                .font(.caption).foregroundStyle(.secondary)
             TextField("Root font size (px):", text: $rootText).onSubmit { applyRoot() }
             HStack {
                 Text("Used for rem conversion.").font(.caption).foregroundStyle(.secondary)

@@ -65,15 +65,24 @@ import Testing
     #expect(MeasurementEngine.text(24, unit: .rem, calibration: calibration, backingFactor: 2) == "0.75rem")
 }
 
-@MainActor @Test func preferencesPersistOnlyValidRootSizes() {
+@MainActor @Test func preferencesPersistAppearanceAndValidRootSizes() {
     let suite = "dev.guides.tests.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     let preferences = GuidesPreferences(defaults: defaults)
     #expect(preferences.rootPixels == 16)
+    #expect(preferences.rulerAppearance == .solid)
     #expect(preferences.setRootPixels(18))
     #expect(!preferences.setRootPixels(.nan))
-    #expect(GuidesPreferences(defaults: defaults).rootPixels == 18)
+    var appearanceChanges: [RulerAppearance] = []
+    preferences.onRulerAppearanceChange = { appearanceChanges.append($0) }
+    preferences.setRulerAppearance(.transparent)
+    let restored = GuidesPreferences(defaults: defaults)
+    #expect(restored.rootPixels == 18)
+    #expect(restored.rulerAppearance == .transparent)
+    preferences.setRulerAppearance(.solid)
+    #expect(GuidesPreferences(defaults: defaults).rulerAppearance == .solid)
+    #expect(appearanceChanges == [.transparent, .solid])
 }
 
 @MainActor @Test func malformedPreferencesRecoverToDefault() {
@@ -81,5 +90,7 @@ import Testing
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     defaults.set(-5, forKey: "rootFontSize")
+    defaults.set("unknown style", forKey: "rulerAppearance")
     #expect(GuidesPreferences(defaults: defaults).rootPixels == 16)
+    #expect(GuidesPreferences(defaults: defaults).rulerAppearance == .solid)
 }

@@ -69,3 +69,10 @@ Environment: Apple Silicon, macOS 27.0.1 (26A434), Xcode 26.6 (17F113), Swift 6.
 | Compatibility | Current Apple Silicon Mac only; macOS 14–26, other Macs, Intel and distribution signing unverified/out of personal MVP scope |
 
 Manual follow-up: open the built app, use the controls in README, and exercise the remaining rows on the relevant hardware. No permission grants or screen capture features are needed by Guides. Do not equate a successful build or a visible accessibility tree with a completed visual acceptance test.
+
+## Numbered rulers and appearance follow-up
+
+- PASS: 34 core tests and native Debug build. Preference tests now cover the Solid default, saved Transparent and Solid values, change notifications, and invalid-value fallback without disturbing the saved rem base.
+- PASS: native screenshot shows vertical labels from 100 through 2100 at the same 100-point cadence and font size as the top ruler. Rotated labels fit the 24-point strip and the ruler retains its full height.
+- PASS: the toolbar ruler menu changes Solid → Transparent → Solid immediately; its accessibility value follows the selected appearance. A screenshot confirms transparent backgrounds on both axes with outlined numbers and ticks. Dragging from the transparent vertical ruler at y=2130 still creates a guide at x=200.
+- Settings also exposes the same saved preference. Full Settings-window/VoiceOver use and readability over every desktop background remain manual checks; native screenshots flatten transparent regions. Solid was restored after testing.

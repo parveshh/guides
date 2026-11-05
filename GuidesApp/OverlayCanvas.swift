@@ -264,22 +264,56 @@ final class OverlayCanvas: NSView {
     }
 
     private func drawRulers() {
-        NSColor(white: 0.1, alpha: 0.97).setFill()
-        topRuler.fill(); leftRuler.fill()
+        if model.rulerAppearance == .solid {
+            NSColor(white: 0.1, alpha: 1).setFill()
+            topRuler.fill(); leftRuler.fill()
+        }
         for x in stride(from: ceil(usableRect.minX / 10) * 10, through: usableRect.maxX, by: 10) {
             let major = Int(x) % 100 == 0
             let path = NSBezierPath()
             path.move(to: CGPoint(x: x, y: topRuler.maxY))
             path.line(to: CGPoint(x: x, y: topRuler.maxY - (major ? 10 : 5)))
-            NSColor.gray.setStroke(); path.lineWidth = 1; path.stroke()
-            if major { ("\(Int(x))" as NSString).draw(at: CGPoint(x: x + 3, y: topRuler.minY + 2), withAttributes: textAttributes) }
+            drawRulerTick(path)
+            if major {
+                drawRulerNumber(Int(x), at: CGPoint(x: x + 3, y: topRuler.minY + 2), vertical: false)
+            }
         }
         for y in stride(from: ceil(leftRuler.minY / 10) * 10, through: leftRuler.maxY, by: 10) {
+            let major = Int(y) % 100 == 0
             let path = NSBezierPath()
             path.move(to: CGPoint(x: leftRuler.maxX, y: y))
-            path.line(to: CGPoint(x: leftRuler.maxX - (Int(y) % 100 == 0 ? 10 : 5), y: y))
-            NSColor.gray.setStroke(); path.lineWidth = 1; path.stroke()
+            path.line(to: CGPoint(x: leftRuler.maxX - (major ? 10 : 5), y: y))
+            drawRulerTick(path)
+            if major {
+                drawRulerNumber(Int(y), at: CGPoint(x: leftRuler.minX + 15, y: y + 3), vertical: true)
+            }
         }
+    }
+
+    private func drawRulerTick(_ path: NSBezierPath) {
+        if model.rulerAppearance == .transparent {
+            NSColor.black.setStroke(); path.lineWidth = 3; path.stroke()
+            NSColor.white.setStroke()
+        } else { NSColor.gray.setStroke() }
+        path.lineWidth = 1
+        path.stroke()
+    }
+
+    private func drawRulerNumber(_ value: Int, at point: CGPoint, vertical: Bool) {
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSBezierPath(rect: vertical ? leftRuler : topRuler).addClip()
+        let transform = NSAffineTransform()
+        transform.translateX(by: point.x, yBy: point.y)
+        if vertical { transform.rotate(byDegrees: 90) }
+        transform.concat()
+        var attributes = textAttributes
+        if model.rulerAppearance == .transparent {
+            // Negative stroke width draws both the white fill and a contrasting black outline.
+            attributes[.strokeColor] = NSColor.black
+            attributes[.strokeWidth] = -6
+        }
+        ("\(value)" as NSString).draw(at: .zero, withAttributes: attributes)
     }
 
     func updateAccessibility() {

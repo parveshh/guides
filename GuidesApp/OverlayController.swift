@@ -15,6 +15,7 @@ final class EditorModel {
     var backingFactor: CGFloat = 1
     var controlsCompact = false
     var displayID: UInt32?
+    var rulerAppearance: RulerAppearance = .solid
     var copyText: String? {
         if document.isAreaSelected, let rect = document.area?.rect, rect.width > 0, rect.height > 0 {
             return MeasurementEngine.areaText(rect, dimension: areaDimension, unit: unit,
@@ -72,8 +73,13 @@ final class OverlayController {
     init(preferences: GuidesPreferences) {
         self.preferences = preferences
         model.calibration.setRootPixels(preferences.rootPixels)
+        model.rulerAppearance = preferences.rulerAppearance
         preferences.onRootChange = { [weak self] value in
             self?.model.calibration.setRootPixels(value)
+            self?.refresh()
+        }
+        preferences.onRulerAppearanceChange = { [weak self] value in
+            self?.model.rulerAppearance = value
             self?.refresh()
         }
     }
@@ -199,6 +205,7 @@ final class OverlayController {
         panel.onCommand = { [weak canvas] event in canvas?.handleCommand(event) ?? false }
         root.addSubview(canvas)
         let controls = NSHostingView(rootView: OverlayControls(model: model,
+            onRulerAppearance: { [weak self] in self?.preferences.setRulerAppearance($0) },
             onTool: { [weak self] tool in self?.canvas?.cancelGesture(); self?.model.presentation.edit(tool); self?.refresh() },
             onCopy: { [weak self] in self?.copySelection() },
             onUnit: { [weak self] unit in self?.model.unit = unit; self?.refresh() },

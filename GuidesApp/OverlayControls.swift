@@ -3,6 +3,7 @@ import GuidesCore
 
 struct OverlayControls: View {
     var model: EditorModel
+    var onRulerAppearance: (RulerAppearance) -> Void
     var onTool: (MeasurementTool) -> Void
     var onCopy: () -> Void
     var onUnit: (MeasurementUnit) -> Void
@@ -46,7 +47,17 @@ struct OverlayControls: View {
 
     private var toolControls: some View {
         HStack(spacing: 10) {
-            Image(systemName: "ruler").foregroundStyle(.cyan)
+            Menu {
+                Picker("Ruler background", selection: Binding(get: { model.rulerAppearance }, set: { onRulerAppearance($0) })) {
+                    ForEach(RulerAppearance.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+            } label: {
+                Image(systemName: "ruler").foregroundStyle(.cyan)
+            }
+            .menuStyle(.borderlessButton).fixedSize()
+            .help("Ruler background: \(model.rulerAppearance.rawValue)")
+            .accessibilityLabel("Ruler background")
+            .accessibilityValue(model.rulerAppearance.rawValue)
             Picker("Tool", selection: Binding(get: { model.presentation.tool }, set: { onTool($0) })) {
                 ForEach(MeasurementTool.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }.pickerStyle(.segmented).labelsHidden().frame(width: 145)

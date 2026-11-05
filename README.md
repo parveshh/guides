@@ -22,6 +22,8 @@ KeyboardShortcuts is pinned to 3.0.1 in the Xcode workspace's resolved package f
 3. Choose **Area** and drag a rectangle. Drag inside to move it; drag an edge or corner handle to resize it. Drawing elsewhere replaces the area in one undoable action. Choose Width, Height, or Both before copying.
 4. **Pin** keeps measurements visible and passes mouse and keyboard input to the app underneath. **Hide** removes the overlay. Activate again to edit retained measurements.
 
+Both rulers label screen-point coordinates every 100 points; vertical labels rotate to fit the narrow strip. Open the **ruler icon menu** in the toolbar or **Settings → Ruler background** to choose **Solid** or **Transparent**. Transparent removes the background while retaining outlined ticks and numbers. The choice applies to both rulers immediately and is saved locally; Solid is the default.
+
 | While the canvas has keyboard focus | Action |
 | --- | --- |
 | H / V | Add a horizontal / vertical guide at the pointer |
@@ -46,7 +48,7 @@ Click the canvas or an accessibility measurement element to focus measurement ke
 
 For example, 64 screen points at 200% scale is `32px`, or `2rem` with a 16px root. The app measures visible boundaries; it cannot infer exact padding, layout tokens, or source properties.
 
-Only one display is active at a time. Each display retains its own in-memory measurements, history, and calibration. Disconnecting a display or changing its logical size/backing scale clears that display's session and hides its overlay. Rearranging displays preserves their local measurements. Sleep hides the overlay; wake rechecks display configuration. Quitting starts all measurements and calibration fresh; the shortcut and root font preference remain.
+Only one display is active at a time. Each display retains its own in-memory measurements, history, and calibration. Disconnecting a display or changing its logical size/backing scale clears that display's session and hides its overlay. Rearranging displays preserves their local measurements. Sleep hides the overlay; wake rechecks display configuration. Quitting starts all measurements and calibration fresh; the shortcut, root font size, and ruler appearance preferences remain.
 
 ## Verification and scope
 

@@ -17,7 +17,7 @@ Success: after learning the controls, measure and copy a typical gap within ten 
 
 ## MVP interface and stories
 
-Launch into the menu bar without a dashboard or Dock icon. Menu: Edit Guides (initial shortcut Control-Option-G), Measure Area, Hide Measurements, Clear Measurements (current display), Settings, Quit. Editing shows thin top/left rulers and a compact floating strip with Guides/Area, unit, scale/calibration, selected value and Copy, Pin, and Hide. Settings contain the activation shortcut and default rem base (16px).
+Launch into the menu bar without a dashboard or Dock icon. Menu: Edit Guides (initial shortcut Control-Option-G), Measure Area, Hide Measurements, Clear Measurements (current display), Settings, Quit. Editing shows thin top/left rulers and a compact floating strip with Guides/Area, unit, scale/calibration, selected value and Copy, Pin, and Hide. Settings contain the activation shortcut, default rem base (16px), and Solid/Transparent ruler backgrounds. The toolbar's ruler icon also opens the background choice.
 
 | ID | Story | Acceptance |
 | --- | --- | --- |
@@ -35,6 +35,7 @@ Interaction defaults:
 - Arrows move one screen point; Shift moves ten; Option moves one backing pixel.
 - Escape cancels the unfinished gesture or otherwise hides the overlay.
 - Click a measurement to select it and expose Copy. Pinned mode retains a noninteractive scale badge.
+- Both rulers show screen-point coordinates every 100 points. Vertical numbers rotate to fit the narrow ruler. Solid is the default background; Transparent leaves only outlined numbers and ticks. This shared appearance preference applies immediately to both rulers and persists across launches.
 - Opaque label backgrounds and contrasting outlines work without sampling the screen. Prioritize selected labels when crowded and keep the selected value in the control strip.
 - Activating another display hides the old overlay and opens that display's independent in-memory session. Measurements never cross displays.
 
@@ -100,7 +101,8 @@ Each slice is implemented, checked, independently reviewed, corrected/re-reviewe
 | 4 | Selection; nonadjacent pairs; nudges; delete; undo/redo; clear/hide retention | Editing state and keyboard behavior | Committed 45759ac after clean re-review |
 | 5 | Move/resize/replace rectangle; dimension copying | Reverse drag, cancellation, replacement, coexistence | Committed 7ddbf92 after clean re-review |
 | 6 | Backing px, design px, rem; calibration; settings | Conversion examples, validation, formatting, persistence | Committed adea314 after clean independent review |
-| 7 | Display lifecycle; readability; accessibility; build instructions | Full acceptance matrix and explicit unverified scenarios | Implemented; 34 core tests and native workflow checks; acceptance limits in TESTING.md |
+| 7 | Display lifecycle; readability; accessibility; build instructions | Full acceptance matrix and explicit unverified scenarios | Committed 3bd867b after clean re-review; acceptance limits in TESTING.md |
+| Follow-up | Numbered vertical ruler; saved Solid/Transparent appearance | Native rendering, style switching, guide dragging, preference restoration | Implemented; 34 tests and native build pass; independent review required before commit |
 
 ### Test and acceptance matrix
 
