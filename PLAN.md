@@ -95,8 +95,8 @@ Each slice is implemented, checked, independently reviewed, corrected/re-reviewe
 | Slice | Deliverable | Validation | Status |
 | --- | --- | --- | --- |
 | 1 | Git main; PLAN.md; AGENTS.md; ignores | Document consistency, scope, references, staged diff | Committed c274f64 after clean independent review |
-| 2 | Xcode project; menu; hotkey; overlay; Hidden/Editing/Pinned | Build, activation, click-through, focus, full-screen, no privacy prompts | Implemented; observed checks and remaining manual checks in TESTING.md |
-| 3 | Pull/drag guides; adjacent distances; copy screen pt | Geometry, coordinate conversions, known measurements | Pending |
+| 2 | Xcode project; menu; hotkey; overlay; Hidden/Editing/Pinned | Build, activation, click-through, focus, full-screen, no privacy prompts | Committed 18ccf2b after clean re-review; limits in TESTING.md |
+| 3 | Pull/drag guides; adjacent distances; copy screen pt | Geometry, coordinate conversions, known measurements | Implemented; 5 tests and native build pass |
 | 4 | Selection; nonadjacent pairs; nudges; delete; undo/redo; clear/hide retention | Editing state and keyboard behavior | Pending |
 | 5 | Move/resize/replace rectangle; dimension copying | Reverse drag, cancellation, replacement, coexistence | Pending |
 | 6 | Backing px, design px, rem; calibration; settings | Conversion examples, validation, formatting, persistence | Pending |

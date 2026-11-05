@@ -7,7 +7,10 @@ import SwiftUI
 @Observable
 final class EditorModel {
     var presentation = Presentation()
-    var status = "Pull a guide from a ruler"
+    var document = GuideDocument(size: .zero)
+    var selectedText: String {
+        document.selectedGap.map { MeasurementText.screenPoints($0.distance) } ?? "Select a distance"
+    }
 }
 
 @MainActor
@@ -43,7 +46,11 @@ final class OverlayController {
         }
         model.presentation.edit(tool)
         if panel == nil { createPanel(screen: screen) }
+        if model.document.size != screen.frame.size {
+            model.document = GuideDocument(size: screen.frame.size)
+        }
         panel?.setFrame(screen.frame, display: true)
+        canvas?.usableRect = DisplayGeometry(frame: screen.frame).localRect(fromGlobal: screen.visibleFrame)
         panel?.editing = true
         panel?.ignoresMouseEvents = false
         refresh()
@@ -92,23 +99,32 @@ final class OverlayController {
         canvas.autoresizingMask = [.width, .height]
         canvas.model = model
         canvas.onEscape = { [weak self] in self?.hide() }
-        panel.onEscape = { [weak canvas] in canvas?.onEscape?() }
+        panel.onEscape = { [weak canvas] in canvas?.cancelOrHide() }
+        canvas.onChange = { [weak self] in self?.refresh() }
+        canvas.onCopy = { [weak self] in self?.copySelection() }
         root.addSubview(canvas)
         let controls = NSHostingView(rootView: OverlayControls(model: model,
             onTool: { [weak self] tool in self?.model.presentation.edit(tool); self?.refresh() },
+            onCopy: { [weak self] in self?.copySelection() },
             onPin: { [weak self] in self?.pin() }, onHide: { [weak self] in self?.hide() }))
         controls.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(controls)
         NSLayoutConstraint.activate([
             controls.centerXAnchor.constraint(equalTo: root.centerXAnchor),
             controls.topAnchor.constraint(equalTo: root.topAnchor, constant: 62),
-            controls.widthAnchor.constraint(equalToConstant: 510),
+            controls.widthAnchor.constraint(equalToConstant: 740),
             controls.heightAnchor.constraint(equalToConstant: 60)
         ])
         panel.contentView = root
         self.panel = panel
         self.canvas = canvas
         self.controls = controls
+    }
+
+    private func copySelection() {
+        guard model.document.selectedGap != nil else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(model.selectedText, forType: .string)
     }
 
     private func refresh() {
@@ -120,6 +136,7 @@ final class OverlayController {
 private struct OverlayControls: View {
     var model: EditorModel
     var onTool: (MeasurementTool) -> Void
+    var onCopy: () -> Void
     var onPin: () -> Void
     var onHide: () -> Void
 
@@ -130,6 +147,9 @@ private struct OverlayControls: View {
                 ForEach(MeasurementTool.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }.pickerStyle(.segmented).frame(width: 150)
             Text("Screen pt").font(.caption).foregroundStyle(.secondary)
+            Text(model.selectedText).font(.system(.caption, design: .monospaced))
+                .lineLimit(1).frame(minWidth: 110)
+            Button("Copy", action: onCopy).disabled(model.document.selectedGap == nil)
             Spacer()
             Button("Pin", systemImage: "pin", action: onPin)
             Button("Hide", systemImage: "xmark", action: onHide)
@@ -138,32 +158,5 @@ private struct OverlayControls: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.25)))
         .padding(2)
-    }
-}
-
-@MainActor
-final class OverlayCanvas: NSView {
-    var model: EditorModel!
-    var onEscape: (() -> Void)?
-    override var isFlipped: Bool { true }
-    override var acceptsFirstResponder: Bool { true }
-    override var needsPanelToBecomeKey: Bool { true }
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-
-    override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 { onEscape?() } else { super.keyDown(with: event) }
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        guard model.presentation.mode != .hidden else { return }
-        let text = model.presentation.mode == .pinned ? "Guides pinned · Use Edit Guides to resume" : "Guides · Editing"
-        let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12, weight: .medium),
-                                                        .foregroundColor: NSColor.white]
-        let label = text as NSString
-        let size = label.size(withAttributes: attributes)
-        let rect = NSRect(x: 24, y: bounds.height - 70, width: size.width + 24, height: 30)
-        NSColor.black.withAlphaComponent(0.9).setFill()
-        NSBezierPath(roundedRect: rect, xRadius: 7, yRadius: 7).fill()
-        label.draw(at: NSPoint(x: rect.minX + 12, y: rect.minY + 7), withAttributes: attributes)
     }
 }

@@ -11,4 +11,10 @@ Run `./scripts/test.sh` for core tests and `./scripts/build.sh` for the native A
 - Toolchain notes: Xcode's iOS simulator service mismatch is unrelated to this macOS target. App Intents metadata extraction is skipped because Guides has no App Intents dependency. No app-source compiler warnings remain.
 - Review correction: Escape is routed at the editing panel before focused toolbar controls consume it, so it shares the canvas cancellation/hide path regardless of first responder. Native toolbar-focus verification remains a manual acceptance item.
 
-Future slices add geometry and interaction tests here. Do not equate a successful build or a visible accessibility tree with a completed visual acceptance test.
+## Slice 3
+
+- PASS: 5 core tests (including 3 display-coordinate cases); native Debug build. Tests cover negative and elevated display origins, reverse/coincident guide distances, axis separation, clamping, nonfinite input, and clipboard precision/unit wording.
+- IMPLEMENTED: ruler drags create guides, dragging moves them, adjacent distances render and can be selected/copied; Escape restores a cancelled gesture.
+- UNVERIFIED: visual ruler placement and pointer accuracy on the native transparent canvas. These remain part of the final native acceptance pass; automated geometry checks are not a substitute for it.
+
+Do not equate a successful build or a visible accessibility tree with a completed visual acceptance test.
