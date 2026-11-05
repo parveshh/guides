@@ -13,6 +13,8 @@ final class EditorModel {
     var calibration = Calibration()
     var unit: MeasurementUnit = .screenPoints
     var backingFactor: CGFloat = 1
+    var controlsCompact = false
+    var displayID: UInt32?
     var copyText: String? {
         if document.isAreaSelected, let rect = document.area?.rect, rect.width > 0, rect.height > 0 {
             return MeasurementEngine.areaText(rect, dimension: areaDimension, unit: unit,
@@ -62,6 +64,10 @@ final class OverlayController {
     private var canvas: OverlayCanvas?
     private var controls: NSHostingView<OverlayControls>?
     private var previousApplication: NSRunningApplication?
+    private var sessions = DisplaySessions()
+    private var controlsWidth: NSLayoutConstraint?
+    private var controlsHeight: NSLayoutConstraint?
+    private var controlsTop: NSLayoutConstraint?
 
     init(preferences: GuidesPreferences) {
         self.preferences = preferences
@@ -74,23 +80,24 @@ final class OverlayController {
 
     func edit(_ tool: MeasurementTool) {
         canvas?.cancelGesture()
+        saveSession()
+        sessions.synchronize(NSScreen.screens.compactMap(\.guidesConfiguration))
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
-                ?? NSScreen.main else { return }
+                ?? NSScreen.main, let configuration = screen.guidesConfiguration,
+              let session = sessions.activate(configuration.id, rootPixels: preferences.rootPixels) else { return }
         let frontmost = NSWorkspace.shared.frontmostApplication
         if frontmost?.processIdentifier != ProcessInfo.processInfo.processIdentifier {
             previousApplication = frontmost
         }
         model.presentation.edit(tool)
+        model.document = session.document
+        model.history = session.history
+        model.calibration = session.calibration
+        model.unit = session.unit
+        model.areaDimension = session.areaDimension
+        model.displayID = configuration.id
         if panel == nil { createPanel(screen: screen) }
-        if model.document.size != screen.frame.size {
-            model.document = MeasurementDocument(size: screen.frame.size)
-            model.history = DocumentHistory()
-            model.calibration = Calibration(rootPixels: preferences.rootPixels)
-            model.unit = .screenPoints
-        }
-        panel?.setFrame(screen.frame, display: true)
-        canvas?.usableRect = DisplayGeometry(frame: screen.frame).localRect(fromGlobal: screen.visibleFrame)
-        model.backingFactor = screen.convertRectToBacking(CGRect(origin: screen.frame.origin, size: CGSize(width: 1, height: 1))).width
+        configureLayout(screen)
         panel?.editing = true
         panel?.ignoresMouseEvents = false
         refresh()
@@ -114,7 +121,49 @@ final class OverlayController {
         model.presentation.hide()
         panel?.editing = false
         panel?.orderOut(nil)
+        refresh()
         restoreFocusIfNeeded()
+    }
+
+    func screenParametersChanged() {
+        canvas?.cancelGesture()
+        saveSession()
+        let activeID = sessions.activeID
+        let invalidated = sessions.synchronize(NSScreen.screens.compactMap(\.guidesConfiguration))
+        if let activeID, invalidated.contains(activeID) {
+            hide()
+            model.document = MeasurementDocument(size: .zero)
+            model.history = DocumentHistory()
+            model.calibration = Calibration(rootPixels: preferences.rootPixels)
+            model.unit = .screenPoints
+            model.displayID = nil
+        } else if let activeID, let screen = NSScreen.screens.first(where: { $0.guidesConfiguration?.id == activeID }) {
+            configureLayout(screen)
+        }
+        refresh()
+    }
+
+    private func saveSession() {
+        var session = DisplaySession(size: model.document.size, rootPixels: preferences.rootPixels)
+        session.document = model.document
+        session.history = model.history
+        session.calibration = model.calibration
+        session.unit = model.unit
+        session.areaDimension = model.areaDimension
+        sessions.save(session)
+    }
+
+    private func configureLayout(_ screen: NSScreen) {
+        panel?.setFrame(screen.frame, display: true)
+        let usable = DisplayGeometry(frame: screen.frame).localRect(fromGlobal: screen.visibleFrame)
+        canvas?.usableRect = usable
+        model.backingFactor = screen.guidesConfiguration?.backingFactor ?? 1
+        model.controlsCompact = usable.width < 820
+        controlsWidth?.constant = max(240, min(820, usable.width - 32))
+        controlsHeight?.constant = model.controlsCompact ? 142 : 104
+        controlsTop?.constant = usable.minY + 40
+        panel?.contentView?.layoutSubtreeIfNeeded()
+        if let controls, let canvas { canvas.controlsRect = canvas.convert(controls.bounds, from: controls) }
     }
 
     private func restoreFocusIfNeeded() {
@@ -162,11 +211,12 @@ final class OverlayController {
             onPin: { [weak self] in self?.pin() }, onHide: { [weak self] in self?.hide() }))
         controls.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(controls)
+        controlsWidth = controls.widthAnchor.constraint(equalToConstant: 820)
+        controlsHeight = controls.heightAnchor.constraint(equalToConstant: 104)
+        controlsTop = controls.topAnchor.constraint(equalTo: root.topAnchor, constant: 40)
         NSLayoutConstraint.activate([
             controls.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-            controls.topAnchor.constraint(equalTo: root.topAnchor, constant: 62),
-            controls.widthAnchor.constraint(equalToConstant: 780),
-            controls.heightAnchor.constraint(equalToConstant: 104)
+            controlsTop!, controlsWidth!, controlsHeight!
         ])
         panel.contentView = root
         self.panel = panel
@@ -202,6 +252,15 @@ final class OverlayController {
 
     private func refresh() {
         controls?.isHidden = model.presentation.mode != .editing
+        canvas?.updateAccessibility()
         canvas?.needsDisplay = true
+    }
+}
+
+private extension NSScreen {
+    var guidesConfiguration: DisplayConfiguration? {
+        guard let id = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return nil }
+        return DisplayConfiguration(id: id.uint32Value, size: frame.size,
+            backingFactor: convertRectToBacking(CGRect(origin: frame.origin, size: CGSize(width: 1, height: 1))).width)
     }
 }

@@ -39,4 +39,33 @@ Run `./scripts/test.sh` for core tests and `./scripts/build.sh` for the native A
 - IMPLEMENTED: all four units, known-size/percentage calibration, Width/Height/Both output in the selected unit, shared root size in Settings/calibration, and local preference validation. Calibration stays in memory and does not silently assume CSS equivalence.
 - UNVERIFIED: clipboard round trip in another native app, all calibration input focus paths, mixed-monitor backing scales, and the remaining system scenarios listed above.
 
-Do not equate a successful build or a visible accessibility tree with a completed visual acceptance test.
+## Slice 7 and final acceptance
+
+Environment: Apple Silicon, macOS 27.0.1 (26A434), Xcode 26.6 (17F113), Swift 6.3.3. The app targets macOS 14; this is not an older-OS compatibility certification.
+
+- PASS: 34 core tests. New cases cover equal-size display independence, retained geometry/history/calibration, shared root updates, changed backing scale/resolution, disconnect/reconnect, unchanged configuration refresh, and keyboard selection/pair traversal.
+- PASS: native Debug build with strict Swift concurrency. App source compiles without warnings. Code-signature and sandbox inspection are included in the final checks.
+- PASS: fresh native launch starts with empty measurements, unconfirmed calibration and Screen pt. Ruler drags to y=300/500 expose a 200pt gap; Up moves the second guide to 499, Command-Z restores 500, and bracket/Shift-bracket selects the pair.
+- PASS: Copy puts `200 screen pt` on the clipboard, verified by pasting into Finder's temporary Go to Folder field and cancelling. Finder accepts keyboard input while Guides is pinned.
+- PASS: accessible measurement elements are enabled and their press/pair actions select the measurement. An initial disabled-state issue was found and corrected during native checks. The canvas also exposes the selected value through the toolbar.
+- PASS: reverse area drag creates 320 × 160pt; dragging the lower-right handle produces 340 × 180pt; undo restores the original. Known-width calibration of 320pt to 160px gives 200% scale and 160 × 80px output. Guides remain alongside the rectangle.
+- PASS, limited scenario: Finder entered full screen; reopening Guides produced its editing controls and retained measurements. Pin worked and Finder was restored to its original windowed state. This does not establish all Spaces/full-screen configurations.
+- PASS: screenshots confirm ruler/guide positions, contrasting guide/area outlines, labels, and area handles. The scale control was given a fixed width after a screenshot exposed compression. Per-app screenshots flatten transparent regions, so they do not establish readability against every underlying desktop surface.
+- PASS, user-reported correction: the vertical ruler used the usable display height and stopped above the Dock region. Its drawing and hit-testing rectangle now extends to the overlay's bottom edge; controls and hints still use safe desktop insets. A rebuilt native screenshot confirms the full height, and dragging from y=2130 in the formerly missing region creates a vertical guide at x=200.
+
+| Acceptance area | Status / remaining manual exercise |
+| --- | --- |
+| Coordinate conversion and all units | Automated pass, including negative display origins, fractional steps, scale/rem examples and invalid input |
+| Guide/area editing and history | Automated pass; native core path passed; cancel a drag with Escape and dense overlapping handles/labels still need manual exercise |
+| Activation and permissions | Finder activation passed without a Guides privacy prompt; repeated physical global shortcut and shortcut recorder conflicts remain unverified |
+| Hidden/Pinned/focus | Native pinned click and keyboard pass; physical Escape from every control, hide/resume and app-switch focus stress remain manual |
+| Clipboard | Native screen-point round trip passed; all unit/dimension strings tested in core |
+| Settings/relaunch | Valid/invalid preference persistence tested in isolated defaults; native fresh geometry/calibration observed; settings-window editing/shortcut persistence remain manual |
+| Multiple displays | Core switching/invalidation passed; actual mixed-DPI displays, unplug/replug, resolution changes, display rearrangement and menu-bar relocation unverified |
+| Full screen / Spaces | One Finder full-screen activation path exercised; multiple Spaces, Stage Manager, multiple full-screen apps and pinned visibility through transitions unverified |
+| Sleep/wake | Notification handlers implemented; actual sleep/wake scenario unverified |
+| Accessibility/readability | Native AX select/pair actions passed; full VoiceOver navigation, light/dark/busy desktop backgrounds and narrow-display layout unverified |
+| Lifecycle/performance | Event-driven implementation with no timers or capture loop; prolonged idle resource measurements unverified |
+| Compatibility | Current Apple Silicon Mac only; macOS 14–26, other Macs, Intel and distribution signing unverified/out of personal MVP scope |
+
+Manual follow-up: open the built app, use the controls in README, and exercise the remaining rows on the relevant hardware. No permission grants or screen capture features are needed by Guides. Do not equate a successful build or a visible accessibility tree with a completed visual acceptance test.

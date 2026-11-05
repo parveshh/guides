@@ -17,35 +17,10 @@ struct OverlayControls: View {
     var body: some View {
         VStack(spacing: 10) {
             HStack(spacing: 10) {
-                Image(systemName: "ruler").foregroundStyle(.cyan)
-                Picker("Tool", selection: Binding(get: { model.presentation.tool }, set: { onTool($0) })) {
-                    ForEach(MeasurementTool.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                }.pickerStyle(.segmented).labelsHidden().frame(width: 145)
-                Picker("Unit", selection: Binding(get: { model.unit }, set: { requestUnit($0) })) {
-                    ForEach(MeasurementUnit.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                }.frame(width: 140)
-                Button(model.calibration.isConfirmed ? "Scale \(MeasurementText.number(model.calibration.pointsPerPixel * 100))%" : "Set scale…") {
-                    pendingUnit = nil
-                    calibrationPresented = true
-                }
-                .popover(isPresented: $calibrationPresented) {
-                    CalibrationEditor(calibration: model.calibration,
-                        gapDistance: model.document.selectedGap?.distance,
-                        area: model.document.isAreaSelected ? model.document.area?.rect : nil,
-                        onApply: { calibration in
-                            onCalibration(calibration)
-                            if let pendingUnit { onUnit(pendingUnit) }
-                            calibrationPresented = false
-                        }, onCancel: { calibrationPresented = false })
-                }
-                Spacer(minLength: 0)
-                Button(action: onUndo) { Image(systemName: "arrow.uturn.backward") }
-                    .disabled(!model.history.canUndo).help("Undo (⌘Z)").accessibilityLabel("Undo")
-                Button(action: onRedo) { Image(systemName: "arrow.uturn.forward") }
-                    .disabled(!model.history.canRedo).help("Redo (⇧⌘Z)").accessibilityLabel("Redo")
-                Button("Pin", systemImage: "pin", action: onPin)
-                Button("Hide", systemImage: "xmark", action: onHide)
+                toolControls
+                if !model.controlsCompact { actionControls }
             }
+            if model.controlsCompact { HStack { Spacer(); actionControls } }
             HStack {
                 Text(model.contextText).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 Spacer()
@@ -62,7 +37,50 @@ struct OverlayControls: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.25)))
         .padding(2)
+        .onChange(of: model.displayID) { _, _ in calibrationPresented = false }
+        .onChange(of: model.presentation.mode) { _, mode in
+            if mode != .editing { calibrationPresented = false }
+        }
         .onChange(of: calibrationPresented) { _, visible in if !visible { pendingUnit = nil } }
+    }
+
+    private var toolControls: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "ruler").foregroundStyle(.cyan)
+            Picker("Tool", selection: Binding(get: { model.presentation.tool }, set: { onTool($0) })) {
+                ForEach(MeasurementTool.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }.pickerStyle(.segmented).labelsHidden().frame(width: 145)
+            Picker("Unit", selection: Binding(get: { model.unit }, set: { requestUnit($0) })) {
+                ForEach(MeasurementUnit.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }.labelsHidden().frame(width: 115)
+            Button(model.calibration.isConfirmed ? "Scale \(MeasurementText.number(model.calibration.pointsPerPixel * 100))%" : "Set scale…") {
+                pendingUnit = nil
+                calibrationPresented = true
+            }
+            .lineLimit(1).frame(width: 130)
+            .popover(isPresented: $calibrationPresented) {
+                CalibrationEditor(calibration: model.calibration,
+                    gapDistance: model.document.selectedGap?.distance,
+                    area: model.document.isAreaSelected ? model.document.area?.rect : nil,
+                    onApply: { calibration in
+                        onCalibration(calibration)
+                        if let pendingUnit { onUnit(pendingUnit) }
+                        calibrationPresented = false
+                    }, onCancel: { calibrationPresented = false })
+            }
+        }
+    }
+
+    private var actionControls: some View {
+        HStack(spacing: 8) {
+            Spacer(minLength: 0)
+            Button(action: onUndo) { Image(systemName: "arrow.uturn.backward") }
+                .disabled(!model.history.canUndo).help("Undo (⌘Z)").accessibilityLabel("Undo")
+            Button(action: onRedo) { Image(systemName: "arrow.uturn.forward") }
+                .disabled(!model.history.canRedo).help("Redo (⇧⌘Z)").accessibilityLabel("Redo")
+            Button("Pin", systemImage: "pin", action: onPin)
+            Button("Hide", systemImage: "xmark", action: onHide)
+        }
     }
 
     private func requestUnit(_ unit: MeasurementUnit) {

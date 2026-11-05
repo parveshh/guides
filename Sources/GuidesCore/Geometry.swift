@@ -108,6 +108,24 @@ public struct MeasurementDocument: Equatable, Sendable {
         isAreaSelected = true
     }
 
+    /// Bracket keys traverse guides in visual order, then the area. Shift keeps a parallel anchor.
+    public mutating func cycleSelection(backwards: Bool, extending: Bool) {
+        let ordered = guides.sorted {
+            if $0.axis != $1.axis { return $0.axis == .horizontal }
+            return $0.position == $1.position ? $0.id.uuidString < $1.id.uuidString : $0.position < $1.position
+        }
+        let count = ordered.count + (area == nil ? 0 : 1)
+        guard count > 0 else { return }
+        let current = isAreaSelected ? ordered.count : ordered.firstIndex { $0.id == selection.last }
+        let next = current.map { ($0 + (backwards ? -1 : 1) + count) % count } ?? (backwards ? count - 1 : 0)
+        if next == ordered.count { selectArea() }
+        else {
+            // Cycling back to the anchor collapses the pair rather than toggling it off.
+            if extending, selection.first == ordered[next].id { select([ordered[next].id]) }
+            else { selectGuide(ordered[next].id, extending: extending) }
+        }
+    }
+
     public mutating func nudge(dx: CGFloat, dy: CGFloat) {
         guard dx.isFinite, dy.isFinite else { return }
         if isAreaSelected, let area {

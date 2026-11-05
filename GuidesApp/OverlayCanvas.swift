@@ -5,6 +5,7 @@ import GuidesCore
 final class OverlayCanvas: NSView {
     var model: EditorModel!
     var usableRect = CGRect.zero
+    var controlsRect = CGRect.zero
     var onEscape: (() -> Void)?
     var onChange: (() -> Void)?
     var onCopy: (() -> Void)?
@@ -19,6 +20,7 @@ final class OverlayCanvas: NSView {
     }
     private var areaDrag: AreaDrag?
     private var labels: [(CGRect, GuideGap)] = []
+    private var accessibilityItems: [String: MeasurementAccessibilityElement] = [:]
     private let rulerSize: CGFloat = 24
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -39,9 +41,10 @@ final class OverlayCanvas: NSView {
     func cancelOrHide() { if !cancelGesture() { onEscape?() } }
 
     func handleCommand(_ event: NSEvent) -> Bool {
-        guard event.modifierFlags.contains(.command) else { return false }
+        guard event.modifierFlags.contains(.command),
+              !event.modifierFlags.contains(.option), !event.modifierFlags.contains(.control) else { return false }
         switch event.charactersIgnoringModifiers?.lowercased() {
-        case "c": onCopy?(); return true
+        case "c" where !event.modifierFlags.contains(.shift): onCopy?(); return true
         case "z":
             if event.modifierFlags.contains(.shift) { onRedo?() } else { onUndo?() }
             return true
@@ -68,6 +71,8 @@ final class OverlayCanvas: NSView {
             model.document.add(axis: axis, position: axis.position(of: point))
         case .delete:
             model.document.deleteSelection()
+        case .cycle(let backwards, let extending):
+            model.document.cycleSelection(backwards: backwards, extending: extending)
         case .nudge(let dx, let dy, let precision):
             let step: CGFloat = precision == .backingPixel ? convertFromBacking(NSSize(width: 1, height: 1)).width
                 : (precision == .tenPoints ? 10 : 1)
@@ -149,7 +154,11 @@ final class OverlayCanvas: NSView {
     }
 
     private var topRuler: CGRect { CGRect(x: usableRect.minX, y: usableRect.minY, width: usableRect.width, height: rulerSize) }
-    private var leftRuler: CGRect { CGRect(x: usableRect.minX, y: usableRect.minY + rulerSize, width: rulerSize, height: max(0, usableRect.height - rulerSize)) }
+    private var leftRuler: CGRect {
+        // The Dock reduces visibleFrame, but measurements still cover the entire display.
+        CGRect(x: usableRect.minX, y: usableRect.minY + rulerSize, width: rulerSize,
+               height: max(0, bounds.maxY - usableRect.minY - rulerSize))
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         guard model.presentation.mode != .hidden else { return }
@@ -171,11 +180,14 @@ final class OverlayCanvas: NSView {
             let bSelected = Set(b.ids) == Set(selected?.ids ?? [])
             return aSelected && !bSelected
         }
-        var occupied: [CGRect] = []
+        var occupied: [CGRect] = model.presentation.mode == .editing ? [controlsRect] : []
+        if let area = model.document.area {
+            occupied.append(labelRect(model.areaText(area.rect), centered: CGPoint(x: area.rect.midX, y: area.rect.minY - 18)))
+        }
         for gap in gaps {
             let selected = Set(gap.ids) == Set(model.document.selection)
             let anchor = gap.axis == .vertical
-                ? CGPoint(x: gap.midpoint, y: usableRect.minY + 205)
+                ? CGPoint(x: gap.midpoint, y: max(usableRect.minY + 205, controlsRect.maxY + 30))
                 : CGPoint(x: usableRect.minX + 88, y: gap.midpoint)
             let text = model.text(gap.distance)
             let rect = labelRect(text, centered: anchor)
@@ -189,7 +201,9 @@ final class OverlayCanvas: NSView {
         }
         let text = model.presentation.mode == .pinned
             ? "Pinned · \(model.contextText) · Edit Guides to resume"
-            : "H/V adds · Arrows nudge · ⇧ selects a pair · ⌘Z undo · Esc hides"
+            : (model.presentation.tool == .area
+                ? "Drag an area · Drag edges to resize · Arrows move · ⌘Z undo · Esc cancels or hides"
+                : "H/V adds · [ / ] selects · Shift pairs · Arrows nudge · ⌘Z undo · Esc hides")
         let rect = labelRect(text, centered: CGPoint(x: usableRect.midX, y: usableRect.maxY - 24))
         drawLabel(text, rect: rect, selected: false)
     }
@@ -231,7 +245,11 @@ final class OverlayCanvas: NSView {
         (selected ? NSColor.systemYellow : NSColor(white: 0.55, alpha: 1)).setStroke()
         path.lineWidth = 1
         path.stroke()
-        (text as NSString).draw(at: CGPoint(x: rect.minX + 8, y: rect.minY + 5), withAttributes: textAttributes)
+        var attributes = textAttributes
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
+        attributes[.paragraphStyle] = paragraph
+        (text as NSString).draw(in: CGRect(x: rect.minX + 8, y: rect.minY + 5, width: max(0, rect.width - 16), height: 17), withAttributes: attributes)
     }
 
     private func line(from start: CGPoint, to end: CGPoint, selected: Bool) {
@@ -261,6 +279,94 @@ final class OverlayCanvas: NSView {
             path.move(to: CGPoint(x: leftRuler.maxX, y: y))
             path.line(to: CGPoint(x: leftRuler.maxX - (Int(y) % 100 == 0 ? 10 : 5), y: y))
             NSColor.gray.setStroke(); path.lineWidth = 1; path.stroke()
+        }
+    }
+
+    func updateAccessibility() {
+        let editing = model.presentation.mode == .editing
+        setAccessibilityElement(editing)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("Measurements")
+        setAccessibilityHelp("H and V add guides at the pointer. Bracket keys select; Shift extends a parallel pair. Arrow keys move the selection.")
+        guard editing else { setAccessibilityChildren([]); accessibilityItems = [:]; return }
+        var updated: [String: MeasurementAccessibilityElement] = [:]
+        var children: [MeasurementAccessibilityElement] = []
+        func element(_ key: String, label: String, rect: CGRect, selected: Bool, action: @escaping @MainActor @Sendable () -> Void) -> MeasurementAccessibilityElement {
+            let item = accessibilityItems[key] ?? MeasurementAccessibilityElement()
+            item.setAccessibilityElement(true)
+            item.setAccessibilityEnabled(true)
+            item.setAccessibilityParent(self)
+            item.setAccessibilityRole(.button)
+            item.setAccessibilityLabel(label)
+            item.setAccessibilityValue(selected ? "Selected" : "")
+            item.setAccessibilityFrameInParentSpace(CGRect(x: rect.minX, y: bounds.maxY - rect.maxY, width: rect.width, height: rect.height))
+            item.press = action
+            updated[key] = item
+            children.append(item)
+            return item
+        }
+        for guide in model.document.guides {
+            let rect = guide.axis == .horizontal
+                ? CGRect(x: usableRect.minX, y: guide.position - 3, width: usableRect.width, height: 6)
+                : CGRect(x: guide.position - 3, y: usableRect.minY, width: 6, height: usableRect.height)
+            let item = element(guide.id.uuidString,
+                label: "\(guide.axis.rawValue.capitalized) guide at \(MeasurementText.screenPoints(guide.position))",
+                rect: rect, selected: model.document.selection.contains(guide.id)) { [weak self] in
+                    self?.selectAccessibleGuide(guide.id, extending: false)
+                }
+            item.setAccessibilityCustomActions([NSAccessibilityCustomAction(name: "Select with current guide", handler: { [weak self] in
+                guard let self, self.model.presentation.mode == .editing else { return false }
+                self.selectAccessibleGuide(guide.id, extending: true)
+                return true
+            })])
+        }
+        var gaps = model.document.adjacentGaps
+        if let selected = model.document.selectedGap, !gaps.contains(where: { Set($0.ids) == Set(selected.ids) }) { gaps.append(selected) }
+        for gap in gaps {
+            let anchor = gap.axis == .horizontal ? CGPoint(x: usableRect.minX + 88, y: gap.midpoint)
+                : CGPoint(x: gap.midpoint, y: max(usableRect.minY + 205, controlsRect.maxY + 30))
+            _ = element(gap.ids.map(\.uuidString).joined(), label: "\(gap.axis == .horizontal ? "Vertical" : "Horizontal") gap \(model.text(gap.distance))",
+                rect: labelRect(model.text(gap.distance), centered: anchor), selected: Set(gap.ids) == Set(model.document.selection)) { [weak self] in
+                    guard let self, self.model.presentation.mode == .editing else { return }
+                    self.cancelGesture(); self.model.document.select(gap.ids)
+                    self.window?.makeFirstResponder(self); self.onChange?()
+                }
+        }
+        if let area = model.document.area {
+            _ = element(area.id.uuidString, label: "Area \(model.areaText(area.rect))", rect: area.rect, selected: model.document.isAreaSelected) { [weak self] in
+                guard let self, self.model.presentation.mode == .editing else { return }
+                self.cancelGesture(); self.model.document.selectArea(); self.model.presentation.edit(.area)
+                self.window?.makeFirstResponder(self); self.onChange?()
+            }
+        }
+        let changed = Set(updated.keys) != Set(accessibilityItems.keys)
+        accessibilityItems = updated
+        setAccessibilityChildren(children)
+        if changed { NSAccessibility.post(element: self, notification: .layoutChanged) }
+    }
+
+    private func selectAccessibleGuide(_ id: UUID, extending: Bool) {
+        guard model.presentation.mode == .editing else { return }
+        cancelGesture()
+        model.document.selectGuide(id, extending: extending)
+        model.presentation.edit(.guides)
+        window?.makeFirstResponder(self)
+        onChange?()
+    }
+}
+
+@MainActor
+private final class MeasurementAccessibilityElement: NSAccessibilityElement {
+    // AppKit installs and reads this callback on its main thread. The legacy accessibility
+    // override is nonisolated; transfer only the Sendable closure, never the NSObject.
+    nonisolated(unsafe) var press: (@MainActor @Sendable () -> Void)?
+    override func accessibilityPerformPress() -> Bool {
+        // AppKit dispatches accessibility actions on the application's main thread.
+        let action = press
+        return MainActor.assumeIsolated {
+            guard let action else { return false }
+            action()
+            return true
         }
     }
 }

@@ -63,7 +63,7 @@ Internal interfaces, with no public API/server/companion protocol:
 
 - Guide: identity, axis, display-local position.
 - Area: identity and normalized rectangle.
-- Display session: guides, optional area, selection, tool, unit, calibration, undo history.
+- Display session: guides, optional area, selection, unit, calibration, undo history. The activation command chooses Guides or Area.
 - Calibration: screen points per design pixel, root font size, and assumed versus supplied scale.
 - Measurement result: unrounded value, unit, manual origin, calibration context.
 
@@ -99,8 +99,8 @@ Each slice is implemented, checked, independently reviewed, corrected/re-reviewe
 | 3 | Pull/drag guides; adjacent distances; copy screen pt | Geometry, coordinate conversions, known measurements | Committed 879a498 after clean independent review |
 | 4 | Selection; nonadjacent pairs; nudges; delete; undo/redo; clear/hide retention | Editing state and keyboard behavior | Committed 45759ac after clean re-review |
 | 5 | Move/resize/replace rectangle; dimension copying | Reverse drag, cancellation, replacement, coexistence | Committed 7ddbf92 after clean re-review |
-| 6 | Backing px, design px, rem; calibration; settings | Conversion examples, validation, formatting, persistence | Implemented; 29 core tests, native build and calibration checks pass |
-| 7 | Display lifecycle; readability; accessibility; build instructions | Full acceptance matrix and explicit unverified scenarios | Pending |
+| 6 | Backing px, design px, rem; calibration; settings | Conversion examples, validation, formatting, persistence | Committed adea314 after clean independent review |
+| 7 | Display lifecycle; readability; accessibility; build instructions | Full acceptance matrix and explicit unverified scenarios | Implemented; 34 core tests and native workflow checks; acceptance limits in TESTING.md |
 
 ### Test and acceptance matrix
 
@@ -111,6 +111,14 @@ Automated: guide reorder/coincidence/deletion/undo; normalized reverse rectangle
 Native: entire workflow without Screen Recording, Accessibility, or Input Monitoring grants; known browser/Figma dimensions at multiple calibrated zooms; click/type/scroll/app-switch underneath pinned overlays; Spaces/full-screen/Stage Manager; sleep/wake and display reconnection; mixed displays where available; light/dark/dense labels; keyboard navigation and accessibility; no idle polling/continuous redraw. Record unavailable hardware/scenarios as unverified rather than passed.
 
 Supply a local app and reproducible build/run instructions. Public signing/notarization, store submission, and updater are later work.
+
+### Final implementation evidence
+
+- Display sessions are keyed by the in-process [NSScreen display ID](https://developer.apple.com/documentation/appkit/nsscreen/devicedescription), not size or desktop origin. Same-sized displays remain independent; resolution/backing changes and disconnects invalidate only affected sessions. Screen configuration changes use [AppKit notifications](https://developer.apple.com/documentation/appkit/nsapplication/didchangescreenparametersnotification); sleep/wake uses the workspace notification center. There is no polling loop.
+- The canvas exposes stable accessibility elements with select/pair actions. Bracket keys provide direct selection and Shift-brackets extend a parallel pair without pointer input. A narrow display uses an extra toolbar row; the toolbar respects the screen's usable top inset. Extreme formatted text truncates visually instead of drawing beyond label backgrounds; copying retains the formatted value.
+- The vertical ruler extends to the full overlay height. A user screenshot exposed that using the usable display height incorrectly left a gap above the Dock region; only controls and hints need that lower safe inset.
+- Swift 6 requires an explicit isolation bridge for the legacy accessibility callback. Only a Sendable action closure crosses that boundary; AppKit objects remain on the main thread. The bridge uses the [Swift migration guide's isolation pattern](https://github.com/swiftlang/swift-migration-guide/blob/main/Guide.docc/IncrementalAdoption.md) and compiled under strict concurrency.
+- Native acceptance now covers ruler placement, a known guide gap, keyboard nudging/undo/pair selection, reverse area creation/resizing, percentage and known-size calibration, accessible selection, clipboard output, pinned input, and activation from a full-screen Finder window. Hardware/OS coverage is deliberately limited to the current Mac; outstanding scenarios remain explicit in `TESTING.md`.
 
 ## Expansion roadmap
 

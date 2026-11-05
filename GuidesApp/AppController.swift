@@ -33,6 +33,12 @@ final class AppController: NSObject, NSApplicationDelegate {
         menu.autoenablesItems = false
         statusItem.menu = menu
         KeyboardShortcuts.onKeyUp(for: .editGuides) { [weak self] in self?.editGuides() }
+        NotificationCenter.default.addObserver(self, selector: #selector(screensChanged),
+            name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(willSleep),
+            name: NSWorkspace.willSleepNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(screensChanged),
+            name: NSWorkspace.didWakeNotification, object: nil)
         if ProcessInfo.processInfo.arguments.contains("--show-overlay") { editGuides() }
     }
 
@@ -52,6 +58,8 @@ final class AppController: NSObject, NSApplicationDelegate {
     @objc private func hideMeasurements() { overlay.hide() }
     @objc private func clearMeasurements() { overlay.clear() }
     @objc private func quit() { NSApp.terminate(nil) }
+    @objc private func screensChanged() { overlay.screenParametersChanged() }
+    @objc private func willSleep() { overlay.hide() }
 
     @objc private func showSettings() {
         overlay.hide()

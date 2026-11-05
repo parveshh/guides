@@ -4,6 +4,7 @@ public enum EditingKeyAction: Equatable, Sendable {
     case add(GuideAxis)
     case delete
     case nudge(horizontal: Int, vertical: Int, step: NudgeStep)
+    case cycle(backwards: Bool, extending: Bool)
 }
 
 public enum KeyboardEditing {
@@ -11,6 +12,8 @@ public enum KeyboardEditing {
                               control: Bool = false, option: Bool = false, shift: Bool = false) -> EditingKeyAction? {
         guard !command, !control else { return nil }
         if !option {
+            if characters == "[" || characters == "{" { return .cycle(backwards: true, extending: shift) }
+            if characters == "]" || characters == "}" { return .cycle(backwards: false, extending: shift) }
             if characters?.lowercased() == "h" { return .add(.horizontal) }
             if characters?.lowercased() == "v" { return .add(.vertical) }
         }
