@@ -153,11 +153,38 @@ Validation: 46 core tests cover the existing features plus readout placement at 
 
 The user reported that editing prevented work in other apps. The action is now labelled **Pin & work**, its help and the canvas hint explain click interception, and the activation shortcut toggles Editing/Pinned. Explicit menu activation still enters editing.
 
+### Planned expansion: annotations and rectangle spotlight
+
+Add an **Annotate** tool for pointing out interface details during reviews and demonstrations. Its first slice supports arrows, straight lines and rectangles. A rectangle can act as a spotlight: the desktop inside stays live and undimmed while the rest of the active display darkens. This is a visual overlay, not content detection or a screen capture.
+
+| ID | Story | Acceptance |
+| --- | --- | --- |
+| A01 | Mark a detail with an arrow or line. | Choose Arrow or Line and drag between endpoints. Select, move, adjust endpoints, nudge and delete it. Offer a small colour palette and stroke-width choices; arrowheads remain readable at either drag direction. |
+| A02 | Frame and highlight a region. | Drag a Rectangle in any direction, then move or resize it with handles. **Spotlight** is enabled by default for a new rectangle; switch it off for an ordinary outline. The interior remains fully undimmed and the exterior darkens immediately. |
+| A03 | Control the spotlight. | One rectangle at a time is the active spotlight on the active display. Drawing or assigning another replaces the previous spotlight assignment in one undoable action; other annotations remain. Adjust dim opacity from 0–80%, initially 55%. The rectangle border and annotation controls stay visible above the dim layer. |
+| A04 | Continue using the highlighted app. | **Pin & work** keeps annotations and dimming visible while the entire overlay, including the clear rectangle, passes input through. Editing captures input to manipulate shapes; a clear interior is only a visual opening during editing. Hide or Escape removes annotations and dimming together; Escape first cancels an unfinished gesture. |
+| A05 | Correct and retain work predictably. | Undo/redo creation, drag/resize, deletion, spotlight assignment, dim-opacity and style changes. One drag is one history action. Deleting the active spotlight restores normal brightness. Clear Annotations removes only annotations and spotlight, preserving guide/area measurements. Hiding retains the session; quitting discards annotations and spotlight. |
+| A06 | Keep annotations separate from measurements. | Annotation rectangles do not replace the measured Area or change calibration. Measurements and annotations can coexist; annotation editing selects only annotation objects. The spotlight clears only its dim mask and does not erase guides or other overlays inside the rectangle. |
+
+Scope and defaults:
+
+- Use the existing one-active-display model. Dim only that display; other displays remain unchanged. Annotations stay fixed in screen coordinates and do not track windows or their contents.
+- Keep per-display annotation state in memory. Switching displays hides the old overlay and restores the selected display’s session; disconnect/resolution/backing-scale changes invalidate affected annotation geometry and spotlight using the existing measurement lifecycle rules.
+- Provide keyboard selection, nudging, deletion and labelled accessibility controls. Expose the selected shape and spotlight state. Keep toolbar/readouts above the dim mask and prefer placing controls outside the highlighted rectangle where space allows.
+- Text labels, ellipses, freehand drawing, multiple simultaneous spotlight openings, saved annotation layouts and screenshot/export are later candidates. The first slice uses no capture or additional privacy grant; existing optional window-resize permission remains unrelated.
+
+Implementation outline: store annotation identities, shape geometry, styles and active spotlight identity separately from the measurement document in GuidesCore. Use one annotation-editing history to make shape and spotlight changes atomic. Render the exterior dim mask, annotation strokes and controls in that order, reusing the existing overlay presentation and input-routing behavior. Normalize reverse-drag rectangles and clip geometry to the active display. Look up current platform drawing/input documentation through Context7 when implementing; this planning update introduces no new API dependency.
+
+Validation before review: geometry and hit-testing for every drag direction; endpoint/handle edits; zero-sized/cancelled rectangles; spotlight replacement and deletion through undo/redo; dim-mask interior/exterior and edge-of-display cases; coexistence with guides/Area; display invalidation; native click-through inside and outside the spotlight; hide/pin/resume, colour/opacity readability and keyboard/accessibility checks. Verify the underlying app stays live inside the clear region. Record unavailable display/assistive-technology checks explicitly.
+
+Status: planned only. This request does not resume the paused window-resize tests or start annotation implementation. Preserve the existing next-feature order; annotations are an added candidate that can be selected for a future reviewed slice.
+
 ### Subsequent candidates, in priority order
 
 1. **Spacing tokens:** a small user-supplied local spacing scale, matching only explicitly calibrated measurements, with clear nearest-match feedback and CSS-variable copying. No claim of inspecting actual styles. Validate matching tolerance and ambiguous matches first.
 2. **Simple grids:** a configurable spacing grid on the active display with visible origin/spacing, using the existing unit/calibration contract and click-through state. Keep guides and area usable alongside it.
 3. **Reference overlays:** import an image as a manually aligned, adjustable-opacity reference; keep reference coordinates separate from measurement calibration. Defer capture-assisted comparison.
+4. **Annotations and spotlight:** arrows, lines and rectangles; a live, undimmed rectangular focus region with adjustable dimming outside it. See the stories above.
 
 Saved layouts and project profiles remain candidates after those workflows prove useful. Each candidate needs its own acceptance details and reviewed implementation slice; none is implicitly implemented by the image inspector.
 
