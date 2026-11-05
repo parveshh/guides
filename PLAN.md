@@ -94,8 +94,8 @@ Each slice is implemented, checked, independently reviewed, corrected/re-reviewe
 
 | Slice | Deliverable | Validation | Status |
 | --- | --- | --- | --- |
-| 1 | Git main; PLAN.md; AGENTS.md; ignores | Document consistency, scope, references, staged diff | Implemented; awaiting independent review |
-| 2 | Xcode project; menu; hotkey; overlay; Hidden/Editing/Pinned | Build, activation, click-through, focus, full-screen, no privacy prompts | Pending |
+| 1 | Git main; PLAN.md; AGENTS.md; ignores | Document consistency, scope, references, staged diff | Committed c274f64 after clean independent review |
+| 2 | Xcode project; menu; hotkey; overlay; Hidden/Editing/Pinned | Build, activation, click-through, focus, full-screen, no privacy prompts | Implemented; observed checks and remaining manual checks in TESTING.md |
 | 3 | Pull/drag guides; adjacent distances; copy screen pt | Geometry, coordinate conversions, known measurements | Pending |
 | 4 | Selection; nonadjacent pairs; nudges; delete; undo/redo; clear/hide retention | Editing state and keyboard behavior | Pending |
 | 5 | Move/resize/replace rectangle; dimension copying | Reverse drag, cancellation, replacement, coexistence | Pending |
@@ -103,6 +103,8 @@ Each slice is implemented, checked, independently reviewed, corrected/re-reviewe
 | 7 | Display lifecycle; readability; accessibility; build instructions | Full acceptance matrix and explicit unverified scenarios | Pending |
 
 ### Test and acceptance matrix
+
+Implementation notes: the pure core is a local Swift package consumed by the Xcode app, allowing headless `swift test` runs. Debug targets the current Apple Silicon architecture. Reopening Guides from Finder enters editing as an alternative activation path. Native automation cannot reliably capture the transparent panel or exercise global hotkeys; those visual/system scenarios remain explicit final manual acceptance items in `TESTING.md`. Core checks and observable native behaviors remain per-slice gates.
 
 Automated: guide reorder/coincidence/deletion/undo; normalized reverse rectangles; cancelled replacement retains old area; coordinate conversion for screens above/left of primary; 32pt yields 64 backing px at 2x; 64pt at 200% yields 32px/2rem at 16px root; 16pt at 50% also yields 32px; invalid calibration cannot affect state/copy; state transitions, display invalidation, and clipboard formatting.
 
