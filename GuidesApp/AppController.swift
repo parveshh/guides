@@ -34,7 +34,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         menu.addItem(item("Quit Guides", #selector(quit)))
         menu.autoenablesItems = false
         statusItem.menu = menu
-        KeyboardShortcuts.onKeyUp(for: .editGuides) { [weak self] in self?.editGuides() }
+        KeyboardShortcuts.onKeyUp(for: .editGuides) { [weak self] in self?.overlay.toggleEditing() }
         NotificationCenter.default.addObserver(self, selector: #selector(screensChanged),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(willSleep),
@@ -90,7 +90,7 @@ private struct SettingsView: View {
 
     var body: some View {
         Form {
-            KeyboardShortcuts.Recorder("Edit Guides:", name: .editGuides)
+            KeyboardShortcuts.Recorder("Edit / Pin Guides:", name: .editGuides)
             Picker("Ruler background:", selection: Binding(get: { preferences.rulerAppearance }, set: { preferences.setRulerAppearance($0) })) {
                 ForEach(RulerAppearance.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }.pickerStyle(.segmented)

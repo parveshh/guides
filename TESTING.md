@@ -86,3 +86,12 @@ Manual follow-up: open the built app, use the controls in README, and exercise t
 - PASS: cancelling Open Image retains the image; Clear removes it; Command-W followed by reopening the inspector starts empty. The bounded preview and metadata controls now fit the 560 × 660 content window. Native inspection initially exposed window growth caused by hosting intrinsic size; fixed sizing and a GeometryReader preview corrected it, including repeated imports.
 - PASS: code signature validation and read-only user-selected file sandbox entitlement inspection. No network or capture entitlement added.
 - Native automation initially could not reach the menu bar via SystemUIServer. The toolbar ruler menu now also offers Inspect Image, and native checks used that entry. The menu bar entry remains implemented. Cross-application file drag/drop, VoiceOver navigation, older macOS versions, and slow-decoder stress on large real files remain manual checks; they are not claimed as native passes.
+
+## Option 2 redesign and desktop interaction
+
+- PASS: 46 core tests and native Debug build. Four new placement tests cover display edges, area/handle avoidance, toolbar clearance and a narrow display. A discovered top-edge collision was corrected.
+- PASS: native visual comparison with docs/design/focus-rail.png shows a neutral charcoal toolbar, pink selection, readable full tool labels, and both numbered rulers. The first comparison exposed truncated Guides/Area labels; intrinsic sizing fixed them. A later check confirms Pin & work fits too.
+- PASS: the selected-gap readout appeared beside the measurement in the earlier native comparison. Pin hides interactive controls; Finder accepted keyboard selection underneath. The final build's Pin & work button also removes the toolbar from the accessibility tree.
+- LIMIT: concurrent desktop changes interrupted automated key/drag attempts. The physical shortcut toggle, the new area dimension buttons, final readout Copy round trip, narrow-display rendering and full VoiceOver navigation remain manual checks. Core geometry/formatting and existing copy handlers pass. No unperformed interaction is counted as passed.
+- Visual evidence and intended departures from the mock are recorded in design-qa.md.
+- Review correction: area dimension buttons announce Select width/height/both, matching their selection-only action; Copy remains a separate action.

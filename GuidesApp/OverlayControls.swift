@@ -6,7 +6,6 @@ struct OverlayControls: View {
     var onRulerAppearance: (RulerAppearance) -> Void
     var onInspectImage: () -> Void
     var onTool: (MeasurementTool) -> Void
-    var onCopy: () -> Void
     var onUnit: (MeasurementUnit) -> Void
     var onCalibration: (Calibration) -> Void
     var onUndo: () -> Void
@@ -19,26 +18,15 @@ struct OverlayControls: View {
     var body: some View {
         VStack(spacing: 10) {
             HStack(spacing: 10) {
-                toolControls
+                toolControls.fixedSize(horizontal: true, vertical: false)
                 if !model.controlsCompact { actionControls }
             }
             if model.controlsCompact { HStack { Spacer(); actionControls } }
-            HStack {
-                Text(model.contextText).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                Spacer()
-                if model.document.isAreaSelected {
-                    Picker("Copy", selection: Binding(get: { model.areaDimension }, set: { model.areaDimension = $0 })) {
-                        ForEach(AreaDimension.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                    }.frame(width: 115)
-                }
-                Text(model.selectedText).font(.system(.body, design: .monospaced)).lineLimit(1)
-                Button("Copy", action: onCopy).disabled(!model.canCopy)
-            }
         }
-        .padding(12)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.25)))
-        .padding(2)
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .buttonStyle(RailButtonStyle())
+        .modifier(OverlaySurface())
+        .padding(8)
         .onChange(of: model.displayID) { _, _ in calibrationPresented = false }
         .onChange(of: model.presentation.mode) { _, mode in
             if mode != .editing { calibrationPresented = false }
@@ -55,23 +43,37 @@ struct OverlayControls: View {
                     ForEach(RulerAppearance.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
             } label: {
-                Image(systemName: "ruler").foregroundStyle(.cyan)
+                Image(systemName: "ruler").font(.system(size: 15)).foregroundStyle(.white)
             }
             .menuStyle(.borderlessButton).fixedSize()
             .help("Ruler background: \(model.rulerAppearance.rawValue)")
             .accessibilityLabel("Tools and ruler appearance")
             .accessibilityValue(model.rulerAppearance.rawValue)
-            Picker("Tool", selection: Binding(get: { model.presentation.tool }, set: { onTool($0) })) {
-                ForEach(MeasurementTool.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }.pickerStyle(.segmented).labelsHidden().frame(width: 145)
-            Picker("Unit", selection: Binding(get: { model.unit }, set: { requestUnit($0) })) {
-                ForEach(MeasurementUnit.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }.labelsHidden().frame(width: 115)
+            divider
+            HStack(spacing: 0) {
+                ForEach(MeasurementTool.allCases, id: \.self) { tool in
+                    Button(tool.rawValue) { onTool(tool) }
+                        .buttonStyle(RailButtonStyle(selected: model.presentation.tool == tool))
+                        .fixedSize()
+                        .accessibilityAddTraits(model.presentation.tool == tool ? [.isSelected] : [])
+                }
+            }.background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+            divider
+            Menu {
+                ForEach(MeasurementUnit.allCases, id: \.self) { unit in
+                    Button(unit.rawValue) { requestUnit(unit) }
+                }
+            } label: {
+                Text(model.unit.rawValue).font(.system(size: 13, weight: .medium))
+            }
+            .menuStyle(.borderlessButton).frame(width: 105, height: 30).padding(.horizontal, 5)
+            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+            .accessibilityLabel("Unit").accessibilityValue(model.unit.rawValue)
             Button(model.calibration.isConfirmed ? "Scale \(MeasurementText.number(model.calibration.pointsPerPixel * 100))%" : "Set scale…") {
                 pendingUnit = nil
                 calibrationPresented = true
             }
-            .lineLimit(1).frame(width: 130)
+            .buttonStyle(RailButtonStyle(filled: true)).lineLimit(1).frame(width: 120)
             .popover(isPresented: $calibrationPresented) {
                 CalibrationEditor(calibration: model.calibration,
                     gapDistance: model.document.selectedGap?.distance,
@@ -92,10 +94,15 @@ struct OverlayControls: View {
                 .disabled(!model.history.canUndo).help("Undo (⌘Z)").accessibilityLabel("Undo")
             Button(action: onRedo) { Image(systemName: "arrow.uturn.forward") }
                 .disabled(!model.history.canRedo).help("Redo (⇧⌘Z)").accessibilityLabel("Redo")
-            Button("Pin", systemImage: "pin", action: onPin)
-            Button("Hide", systemImage: "xmark", action: onHide)
+            divider
+            Button("Pin & work", systemImage: "pin", action: onPin)
+                .fixedSize().help("Keep measurements visible and interact with other apps. Use the activation shortcut to edit again.")
+            Button("Hide", systemImage: "eye.slash", action: onHide)
+                .fixedSize().help("Hide measurements and return to other apps (Escape).")
         }
     }
+
+    private var divider: some View { Rectangle().fill(.white.opacity(0.18)).frame(width: 1, height: 24) }
 
     private func requestUnit(_ unit: MeasurementUnit) {
         if unit.requiresCalibration, !model.calibration.isConfirmed {

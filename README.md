@@ -18,9 +18,11 @@ KeyboardShortcuts is pinned to 3.0.1 in the Xcode workspace's resolved package f
 ## Measure
 
 1. Choose **Edit Guides** from the menu bar, or use **Control–Option–G**. Editing opens on the display under the pointer.
-2. Pull down from the top ruler for a horizontal guide, or right from the left ruler for a vertical guide. Adjacent distances appear automatically. Click a distance to select and copy it. Shift-click two parallel guides to measure their total separation.
-3. Choose **Area** and drag a rectangle. Drag inside to move it; drag an edge or corner handle to resize it. Drawing elsewhere replaces the area in one undoable action. Choose Width, Height, or Both before copying.
-4. **Pin** keeps measurements visible and passes mouse and keyboard input to the app underneath. **Hide** removes the overlay. Activate again to edit retained measurements.
+2. Pull down from the top ruler for a horizontal guide, or right from the left ruler for a vertical guide. Adjacent distances appear automatically. Click a distance to select it; a nearby readout shows its value and **Copy**. Shift-click two parallel guides to measure their total separation.
+3. Choose **Area** and drag a rectangle. Drag inside to move it; drag an edge or corner handle to resize it. Drawing elsewhere replaces the area in one undoable action. Choose Width, Height, or Both in the nearby readout before copying.
+4. **Pin & work** keeps measurements visible and passes mouse and keyboard input to the app underneath. **Hide** removes the overlay. Use the activation shortcut again to edit retained measurements. While editing, the same shortcut pins them.
+
+The compact charcoal toolbar keeps editing controls in one row on normal displays. Selected tools and guide outlines use pink; the selected measurement and Copy live in a separate nearby readout. Pin & work hides both interactive surfaces. Editing captures clicks across the display; pin or hide to interact with other apps.
 
 Both rulers label screen-point coordinates every 100 points; vertical labels rotate to fit the narrow strip. Open the **ruler icon menu** in the toolbar or **Settings → Ruler background** to choose **Solid** or **Transparent**. Transparent removes the background while retaining outlined ticks and numbers. The choice applies to both rulers immediately and is saved locally; Solid is the default.
 

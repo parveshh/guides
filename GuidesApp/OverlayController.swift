@@ -65,6 +65,7 @@ final class OverlayController {
     private var panel: OverlayPanel?
     private var canvas: OverlayCanvas?
     private var controls: NSHostingView<OverlayControls>?
+    private var readout: NSHostingView<MeasurementReadout>?
     private var previousApplication: NSRunningApplication?
     private var sessions = DisplaySessions()
     private var controlsWidth: NSLayoutConstraint?
@@ -111,6 +112,11 @@ final class OverlayController {
         refresh()
         panel?.makeKeyAndOrderFront(nil)
         panel?.makeFirstResponder(canvas)
+    }
+
+    func toggleEditing() {
+        if model.presentation.mode == .editing { pin() }
+        else { edit(model.presentation.tool) }
     }
 
     func pin() {
@@ -168,8 +174,8 @@ final class OverlayController {
         model.backingFactor = screen.guidesConfiguration?.backingFactor ?? 1
         model.controlsCompact = usable.width < 820
         controlsWidth?.constant = max(240, min(820, usable.width - 32))
-        controlsHeight?.constant = model.controlsCompact ? 142 : 104
-        controlsTop?.constant = usable.minY + 40
+        controlsHeight?.constant = model.controlsCompact ? 106 : 66
+        controlsTop?.constant = usable.minY + 32
         panel?.contentView?.layoutSubtreeIfNeeded()
         if let controls, let canvas { canvas.controlsRect = canvas.convert(controls.bounds, from: controls) }
     }
@@ -210,7 +216,6 @@ final class OverlayController {
             onRulerAppearance: { [weak self] in self?.preferences.setRulerAppearance($0) },
             onInspectImage: onInspectImage,
             onTool: { [weak self] tool in self?.canvas?.cancelGesture(); self?.model.presentation.edit(tool); self?.refresh() },
-            onCopy: { [weak self] in self?.copySelection() },
             onUnit: { [weak self] unit in self?.model.unit = unit; self?.refresh() },
             onCalibration: { [weak self] calibration in
                 self?.model.calibration = calibration
@@ -220,18 +225,26 @@ final class OverlayController {
             onUndo: { [weak self] in self?.undo() }, onRedo: { [weak self] in self?.redo() },
             onPin: { [weak self] in self?.pin() }, onHide: { [weak self] in self?.hide() }))
         controls.translatesAutoresizingMaskIntoConstraints = false
+        controls.sizingOptions = []
         root.addSubview(controls)
         controlsWidth = controls.widthAnchor.constraint(equalToConstant: 820)
-        controlsHeight = controls.heightAnchor.constraint(equalToConstant: 104)
+        controlsHeight = controls.heightAnchor.constraint(equalToConstant: 66)
         controlsTop = controls.topAnchor.constraint(equalTo: root.topAnchor, constant: 40)
         NSLayoutConstraint.activate([
             controls.centerXAnchor.constraint(equalTo: root.centerXAnchor),
             controlsTop!, controlsWidth!, controlsHeight!
         ])
+        let readout = NSHostingView(rootView: MeasurementReadout(model: model,
+            onDimension: { [weak self] dimension in self?.model.areaDimension = dimension; self?.refresh() },
+            onCopy: { [weak self] in self?.copySelection() }))
+        readout.sizingOptions = []
+        readout.isHidden = true
+        root.addSubview(readout)
         panel.contentView = root
         self.panel = panel
         self.canvas = canvas
         self.controls = controls
+        self.readout = readout
     }
 
     func clear() {
@@ -262,8 +275,32 @@ final class OverlayController {
 
     private func refresh() {
         controls?.isHidden = model.presentation.mode != .editing
+        positionReadout()
         canvas?.updateAccessibility()
         canvas?.needsDisplay = true
+    }
+
+    private func positionReadout() {
+        guard let canvas, let readout, let root = panel?.contentView else { return }
+        guard model.presentation.mode == .editing, model.canCopy else {
+            readout.isHidden = true
+            canvas.readoutRect = .zero
+            return
+        }
+        let area = model.document.isAreaSelected ? model.document.area?.rect : nil
+        let gap = model.document.selectedGap
+        let anchor: CGPoint
+        if let area { anchor = CGPoint(x: area.midX, y: area.midY) }
+        else if let gap { anchor = MeasurementReadoutLayout.gapAnchor(gap, usable: canvas.usableRect, toolbar: canvas.controlsRect) }
+        else { return }
+        let valueWidth = (model.selectedText as NSString).size(withAttributes: [.font: NSFont.monospacedSystemFont(ofSize: 16, weight: .semibold)]).width
+        let contextWidth = (model.contextText as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11)]).width
+        let size = CGSize(width: min(460, max(300, max(valueWidth, contextWidth) + 140)), height: area == nil ? 76 : 115)
+        let frame = MeasurementReadoutLayout.frame(size: size, anchor: anchor, beside: gap?.axis == .horizontal,
+            usable: canvas.usableRect, toolbar: canvas.controlsRect, area: area)
+        readout.frame = canvas.convert(frame, to: root)
+        readout.isHidden = false
+        canvas.readoutRect = frame
     }
 }
 

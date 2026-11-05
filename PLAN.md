@@ -17,11 +17,11 @@ Success: after learning the controls, measure and copy a typical gap within ten 
 
 ## MVP interface and stories
 
-Launch into the menu bar without a dashboard or Dock icon. Menu: Edit Guides (initial shortcut Control-Option-G), Measure Area, Hide Measurements, Clear Measurements (current display), Settings, Quit. Editing shows thin top/left rulers and a compact floating strip with Guides/Area, unit, scale/calibration, selected value and Copy, Pin, and Hide. Settings contain the activation shortcut, default rem base (16px), and Solid/Transparent ruler backgrounds. The toolbar's ruler icon also opens the background choice.
+Launch into the menu bar without a dashboard or Dock icon. Menu: Edit Guides (initial shortcut Control-Option-G), Measure Area, Hide Measurements, Clear Measurements (current display), Settings, Quit. Editing shows thin top/left rulers and a compact floating strip with Guides/Area, unit, scale/calibration, a separate selected-value/Copy readout, Pin & work, and Hide. Settings contain the activation shortcut, default rem base (16px), and Solid/Transparent ruler backgrounds. The toolbar's ruler icon also opens the background choice.
 
 | ID | Story | Acceptance |
 | --- | --- | --- |
-| G01 | Activate without changing workspace. | Menu/shortcut opens editing on the pointer's display; repeated activation focuses the editor; no privacy prompt. |
+| G01 | Activate without changing workspace. | Menu opens editing on the pointer's display; the shortcut toggles Editing/Pinned and resumes the chosen tool; no privacy prompt. |
 | G02 | Pull guides onto visible boundaries. | Top ruler creates horizontal guides, left creates vertical; H/V adds at pointer while editing; select, drag, delete, and nudge. |
 | G03 | Read spacing immediately. | Adjacent parallel guides show distances; Shift-select two parallel guides for total separation; reordered/coincident guides never produce negative distances. |
 | G04 | Check displayed width and height. | Drag an area in either direction, move/resize it; one rectangle per display coexists with guides; replacement is one undoable action. |
@@ -36,7 +36,7 @@ Interaction defaults:
 - Escape cancels the unfinished gesture or otherwise hides the overlay.
 - Click a measurement to select it and expose Copy. Pinned mode retains a noninteractive scale badge.
 - Both rulers show screen-point coordinates every 100 points. Vertical numbers rotate to fit the narrow ruler. Solid is the default background; Transparent leaves only outlined numbers and ticks. This shared appearance preference applies immediately to both rulers and persists across launches.
-- Opaque label backgrounds and contrasting outlines work without sampling the screen. Prioritize selected labels when crowded and keep the selected value in the control strip.
+- Opaque label backgrounds and contrasting outlines work without sampling the screen. Prioritize selected labels when crowded and keep the selected value in its nearby readout.
 - Activating another display hides the old overlay and opens that display's independent in-memory session. Measurements never cross displays.
 
 Excluded from the MVP: image-file inspection, screenshots/capture, loupe, colour picker, automatic snapping, presets, integrations, accounts, billing, automatic updates, and public distribution.
@@ -139,9 +139,19 @@ Implementation: an Image I/O reader and serial loader actor in GuidesCore; a ded
 
 Documentation: Context7 resolved AppKit to `/websites/developer_apple_appkit` and supplied image/pasteboard and drag registration references. Two Image I/O resolution queries returned unrelated libraries; the AppKit query also had limited open-panel detail. The missing APIs were checked against the installed SDK and Apple's [Image I/O image sources](https://developer.apple.com/documentation/imageio/cgimagesource), [orientation-aware thumbnails](https://developer.apple.com/documentation/imageio/kcgimagesourcecreatethumbnailwithtransform), and [user-selected read-only file entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.files.user-selected.read-only). Add only that file entitlement to the existing sandbox; no screen capture or broad disk access.
 
-Status: implemented; 42 core tests and native Debug build pass. The toolbar ruler menu provides a second entry point, resolving the native automation access blocker. Open, image/file paste, copying, error recovery, cancel, clear and close/reopen have native evidence in TESTING.md; cross-app drag remains a documented manual check. Independent re-review is required before commit. The review found a rejected-import race; a shared observable model now invalidates pending results on rejection, with a controllable-loader regression test. Native inspection also exposed preview-driven window growth; fixed hosting dimensions and a geometry-bounded preview corrected it.
+Status: committed as bd877ea after clean independent re-review. 42 core tests, native Debug build, and the native open/paste/copy/recovery/lifecycle checks passed. Cross-app drag and full VoiceOver remain manual checks in TESTING.md. Review fixes invalidate rejected pending imports and ignore Caps Lock for inspector shortcuts; native validation also corrected preview-driven window growth.
 
-The requested toolbar redesign is a separate follow-up. The user selected the second displayed image: an opaque charcoal single-row toolbar with pink accents and a separate Copy readout next to the selected measurement. Implement this next as a separate reviewed slice; preserve calibration, area dimension copying, ruler appearance, undo/redo, and hidden/pinned behavior.
+### Selected follow-up: option 2 toolbar redesign
+
+The user selected the second displayed image, saved as [focus-rail.png](docs/design/focus-rail.png). Use its opaque charcoal single-row toolbar, pink tool selection/guides, light solid rulers, and separate Copy readout beside the selected gap. Keep the surface neutral instead of wallpaper-tinted material. The underlying mock layout is context, not a new app dashboard; the actual desktop remains visible beneath the overlay.
+
+Preserve all measurement behavior: both tools, units and explicit calibration, area Width/Height/Both copying, undo/redo, ruler appearance and image-inspector access, keyboard editing and accessibility, hiding and click-through pinning. When no copyable measurement is selected, show no empty readout. Pinned mode hides all interactive controls and retains the noninteractive measurement/scale labels. Narrow displays use a second toolbar row. The readout clamps to display bounds, avoids the toolbar when space allows, and prefers placement outside area resize handles. Exact text is copied even when unusually long values must truncate visually.
+
+Implementation: shared visual styles, custom native SwiftUI buttons with selection traits, an independently positioned NSHostingView for the measurement readout, and tested pure placement geometry. Context7's official SwiftUI references verified [ButtonStyle](https://developer.apple.com/documentation/swiftui/buttonstyle), [selection accessibility](https://developer.apple.com/documentation/swiftui/accessibilitytraits/isselected), [color scheme](https://developer.apple.com/documentation/swiftui/environmentvalues/colorscheme), and [hosting sizing options](https://developer.apple.com/documentation/swiftui/nshostingview/sizingoptions). Existing AppKit window/input handling stays in place.
+
+Validation: 46 core tests cover the existing features plus readout placement at edges, next to areas, below the toolbar and on narrow displays. A top-edge collision discovered by the new tests was fixed with a toolbar-clearance fallback. The first native visual comparison found compressed tool labels; their intrinsic sizing was corrected. The native re-check confirms full Guides/Area and Pin & work labels, the neutral toolbar and numbered rulers. Earlier native inspection confirmed the selected-gap readout. Pin removes interactive controls and Finder accepts input underneath. Automated UI input was interrupted by concurrent desktop changes, so the final physical hotkey toggle and area readout interactions remain manual checks. See design-qa.md and TESTING.md; independent review is the final commit gate.
+
+The user reported that editing prevented work in other apps. The action is now labelled **Pin & work**, its help and the canvas hint explain click interception, and the activation shortcut toggles Editing/Pinned. Explicit menu activation still enters editing.
 
 ### Subsequent candidates, in priority order
 

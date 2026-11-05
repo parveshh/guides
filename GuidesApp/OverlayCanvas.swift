@@ -6,6 +6,7 @@ final class OverlayCanvas: NSView {
     var model: EditorModel!
     var usableRect = CGRect.zero
     var controlsRect = CGRect.zero
+    var readoutRect = CGRect.zero
     var onEscape: (() -> Void)?
     var onChange: (() -> Void)?
     var onCopy: (() -> Void)?
@@ -180,15 +181,13 @@ final class OverlayCanvas: NSView {
             let bSelected = Set(b.ids) == Set(selected?.ids ?? [])
             return aSelected && !bSelected
         }
-        var occupied: [CGRect] = model.presentation.mode == .editing ? [controlsRect] : []
+        var occupied: [CGRect] = model.presentation.mode == .editing ? [controlsRect, readoutRect] : []
         if let area = model.document.area {
             occupied.append(labelRect(model.areaText(area.rect), centered: CGPoint(x: area.rect.midX, y: area.rect.minY - 18)))
         }
         for gap in gaps {
             let selected = Set(gap.ids) == Set(model.document.selection)
-            let anchor = gap.axis == .vertical
-                ? CGPoint(x: gap.midpoint, y: max(usableRect.minY + 205, controlsRect.maxY + 30))
-                : CGPoint(x: usableRect.minX + 88, y: gap.midpoint)
+            let anchor = MeasurementReadoutLayout.gapAnchor(gap, usable: usableRect, toolbar: controlsRect)
             let text = model.text(gap.distance)
             let rect = labelRect(text, centered: anchor)
             guard selected || !occupied.contains(where: { $0.intersects(rect) }) else { continue }
@@ -196,14 +195,16 @@ final class OverlayCanvas: NSView {
             let start = gap.axis == .vertical ? CGPoint(x: gap.first.position, y: anchor.y) : CGPoint(x: anchor.x, y: gap.first.position)
             let end = gap.axis == .vertical ? CGPoint(x: gap.second.position, y: anchor.y) : CGPoint(x: anchor.x, y: gap.second.position)
             line(from: start, to: end, selected: selected)
-            drawLabel(text, rect: rect, selected: selected)
-            labels.append((rect, gap))
+            if !selected || model.presentation.mode != .editing {
+                drawLabel(text, rect: rect, selected: selected)
+                labels.append((rect, gap))
+            }
         }
         let text = model.presentation.mode == .pinned
-            ? "Pinned · \(model.contextText) · Edit Guides to resume"
+            ? "Pinned · \(model.contextText) · Activation shortcut to edit"
             : (model.presentation.tool == .area
-                ? "Drag an area · Drag edges to resize · Arrows move · ⌘Z undo · Esc cancels or hides"
-                : "H/V adds · [ / ] selects · Shift pairs · Arrows nudge · ⌘Z undo · Esc hides")
+                ? "Editing captures clicks · Drag an area · Pin & work to use other apps · Esc cancels or hides"
+                : "Editing captures clicks · H/V adds · Shift pairs · Pin & work to use other apps · Esc hides")
         let rect = labelRect(text, centered: CGPoint(x: usableRect.midX, y: usableRect.maxY - 24))
         drawLabel(text, rect: rect, selected: false)
     }
@@ -213,16 +214,18 @@ final class OverlayCanvas: NSView {
         let selected = model.document.isAreaSelected
         let path = NSBezierPath(rect: area.rect)
         NSColor.black.withAlphaComponent(0.85).setStroke(); path.lineWidth = 3; path.stroke()
-        (selected ? NSColor.systemYellow : NSColor.cyan).setStroke()
+        OverlayStyle.guide.withAlphaComponent(selected ? 1 : 0.75).setStroke()
         path.lineWidth = 1 / (window?.backingScaleFactor ?? 1); path.stroke()
         let text = model.areaText(area.rect)
-        drawLabel(text, rect: labelRect(text, centered: CGPoint(x: area.rect.midX, y: area.rect.minY - 18)), selected: selected)
+        if !selected || model.presentation.mode != .editing {
+            drawLabel(text, rect: labelRect(text, centered: CGPoint(x: area.rect.midX, y: area.rect.minY - 18)), selected: selected)
+        }
         if selected, model.presentation.mode == .editing, model.presentation.tool == .area {
             for handle in AreaHandle.allCases {
                 let point = handle.point(on: area.rect)
                 let handleRect = CGRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8)
                 NSColor.black.setFill(); handleRect.fill()
-                NSColor.systemYellow.setStroke(); NSBezierPath(rect: handleRect).stroke()
+                OverlayStyle.guide.setStroke(); NSBezierPath(rect: handleRect).stroke()
             }
         }
     }
@@ -242,7 +245,7 @@ final class OverlayCanvas: NSView {
         NSColor(white: 0.08, alpha: 0.97).setFill()
         let path = NSBezierPath(roundedRect: rect, xRadius: 5, yRadius: 5)
         path.fill()
-        (selected ? NSColor.systemYellow : NSColor(white: 0.55, alpha: 1)).setStroke()
+        (selected ? OverlayStyle.guide : NSColor(white: 0.55, alpha: 1)).setStroke()
         path.lineWidth = 1
         path.stroke()
         var attributes = textAttributes
@@ -258,14 +261,14 @@ final class OverlayCanvas: NSView {
         NSColor.black.withAlphaComponent(0.85).setStroke()
         path.lineWidth = 3
         path.stroke()
-        (selected ? NSColor.systemYellow : NSColor.cyan).setStroke()
-        path.lineWidth = 1 / (window?.backingScaleFactor ?? 1)
+        OverlayStyle.guide.withAlphaComponent(selected ? 1 : 0.75).setStroke()
+        path.lineWidth = (selected ? 2 : 1) / (window?.backingScaleFactor ?? 1)
         path.stroke()
     }
 
     private func drawRulers() {
         if model.rulerAppearance == .solid {
-            NSColor(white: 0.1, alpha: 1).setFill()
+            NSColor(white: 0.94, alpha: 1).setFill()
             topRuler.fill(); leftRuler.fill()
         }
         for x in stride(from: ceil(usableRect.minX / 10) * 10, through: usableRect.maxX, by: 10) {
@@ -294,7 +297,7 @@ final class OverlayCanvas: NSView {
         if model.rulerAppearance == .transparent {
             NSColor.black.setStroke(); path.lineWidth = 3; path.stroke()
             NSColor.white.setStroke()
-        } else { NSColor.gray.setStroke() }
+        } else { NSColor(white: 0.4, alpha: 1).setStroke() }
         path.lineWidth = 1
         path.stroke()
     }
@@ -308,6 +311,7 @@ final class OverlayCanvas: NSView {
         if vertical { transform.rotate(byDegrees: 90) }
         transform.concat()
         var attributes = textAttributes
+        if model.rulerAppearance == .solid { attributes[.foregroundColor] = NSColor(white: 0.16, alpha: 1) }
         if model.rulerAppearance == .transparent {
             // Negative stroke width draws both the white fill and a contrasting black outline.
             attributes[.strokeColor] = NSColor.black
@@ -357,8 +361,7 @@ final class OverlayCanvas: NSView {
         var gaps = model.document.adjacentGaps
         if let selected = model.document.selectedGap, !gaps.contains(where: { Set($0.ids) == Set(selected.ids) }) { gaps.append(selected) }
         for gap in gaps {
-            let anchor = gap.axis == .horizontal ? CGPoint(x: usableRect.minX + 88, y: gap.midpoint)
-                : CGPoint(x: gap.midpoint, y: max(usableRect.minY + 205, controlsRect.maxY + 30))
+            let anchor = MeasurementReadoutLayout.gapAnchor(gap, usable: usableRect, toolbar: controlsRect)
             _ = element(gap.ids.map(\.uuidString).joined(), label: "\(gap.axis == .horizontal ? "Vertical" : "Horizontal") gap \(model.text(gap.distance))",
                 rect: labelRect(model.text(gap.distance), centered: anchor), selected: Set(gap.ids) == Set(model.document.selection)) { [weak self] in
                     guard let self, self.model.presentation.mode == .editing else { return }
