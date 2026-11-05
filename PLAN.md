@@ -102,7 +102,7 @@ Each slice is implemented, checked, independently reviewed, corrected/re-reviewe
 | 5 | Move/resize/replace rectangle; dimension copying | Reverse drag, cancellation, replacement, coexistence | Committed 7ddbf92 after clean re-review |
 | 6 | Backing px, design px, rem; calibration; settings | Conversion examples, validation, formatting, persistence | Committed adea314 after clean independent review |
 | 7 | Display lifecycle; readability; accessibility; build instructions | Full acceptance matrix and explicit unverified scenarios | Committed 3bd867b after clean re-review; acceptance limits in TESTING.md |
-| Follow-up | Numbered vertical ruler; saved Solid/Transparent appearance | Native rendering, style switching, guide dragging, preference restoration | Implemented; 34 tests and native build pass; independent review required before commit |
+| Follow-up | Numbered vertical ruler; saved Solid/Transparent appearance | Native rendering, style switching, guide dragging, preference restoration | Committed 7d82014 after clean independent review |
 
 ### Test and acceptance matrix
 
@@ -123,6 +123,33 @@ Supply a local app and reproducible build/run instructions. Public signing/notar
 - Native acceptance now covers ruler placement, a known guide gap, keyboard nudging/undo/pair selection, reverse area creation/resizing, percentage and known-size calibration, accessible selection, clipboard output, pinned input, and activation from a full-screen Finder window. Hardware/OS coverage is deliberately limited to the current Mac; outstanding scenarios remain explicit in `TESTING.md`.
 
 ## Expansion roadmap
+
+The original [Plan Guides App conversation](chatgpt-conversation://6aec388a-457c-83eb-b585-076e78de88c1) was reread in full for the next slice. Image inspection already appears in both that conversation and this roadmap. It adds an immediately useful developer workflow without depending on capture or integrations. The accepted manual-measurement MVP remains intact; the following work extends it in separate reviewed commits.
+
+### Selected next slice: local image inspector
+
+| ID | Story | Acceptance |
+| --- | --- | --- |
+| I01 | Inspect a supplied image without leaving the menu bar utility. | Inspect Image in the menu bar or toolbar ruler menu opens a separate compact window; Open Image, one-file drag/drop, and explicit Paste Image accept local inputs. Opening the inspector hides and retains desktop measurements. |
+| I02 | Read original asset dimensions. | Width, height, reduced aspect ratio, format, byte size, and alpha-channel presence are derived from Image I/O metadata. EXIF orientation is applied; encoded dimensions are shown when orientation differs. DPI and ruler calibration do not change pixel counts. |
+| I03 | Copy values for development. | Copy Dimensions, Width, and Height use the displayed original pixel values. A bounded, orientation-correct preview is clearly labelled as scaled. |
+| I04 | Understand import limits and recover. | Clipboard representations are labelled separately from original files. Multi-image files show primary-image metadata and image count; no animation. Invalid/missing/oversized inputs show an error and retain the prior successful image. Cancel leaves it unchanged; Clear/close discards it and cancels pending results. No image state is persisted. |
+
+Implementation: an Image I/O reader and serial loader actor in GuidesCore; a dedicated AppKit window, open panel and pasteboard/drag handling; SwiftUI preview and metadata controls. Read at most 100 MiB of encoded input (plus one byte to detect overflow), produce a preview bounded to 800 pixels on its longest edge, and perform file reading/decoding off the main actor. Newer requests supersede older results. This bounds input/preview size; it is not a promise of constant memory use inside system image decoders. File promises, remote URLs, vectors such as SVG/PDF, batch inspection, metadata editing, and pixel-level transparency detection are outside this slice. PNG/TIFF clipboard data is inspected as provided, not normalized through NSImage.
+
+Documentation: Context7 resolved AppKit to `/websites/developer_apple_appkit` and supplied image/pasteboard and drag registration references. Two Image I/O resolution queries returned unrelated libraries; the AppKit query also had limited open-panel detail. The missing APIs were checked against the installed SDK and Apple's [Image I/O image sources](https://developer.apple.com/documentation/imageio/cgimagesource), [orientation-aware thumbnails](https://developer.apple.com/documentation/imageio/kcgimagesourcecreatethumbnailwithtransform), and [user-selected read-only file entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.files.user-selected.read-only). Add only that file entitlement to the existing sandbox; no screen capture or broad disk access.
+
+Status: implemented; 42 core tests and native Debug build pass. The toolbar ruler menu provides a second entry point, resolving the native automation access blocker. Open, image/file paste, copying, error recovery, cancel, clear and close/reopen have native evidence in TESTING.md; cross-app drag remains a documented manual check. Independent re-review is required before commit. The review found a rejected-import race; a shared observable model now invalidates pending results on rejection, with a controllable-loader regression test. Native inspection also exposed preview-driven window growth; fixed hosting dimensions and a geometry-bounded preview corrected it.
+
+The requested toolbar redesign is a separate follow-up. The user selected the second displayed image: an opaque charcoal single-row toolbar with pink accents and a separate Copy readout next to the selected measurement. Implement this next as a separate reviewed slice; preserve calibration, area dimension copying, ruler appearance, undo/redo, and hidden/pinned behavior.
+
+### Subsequent candidates, in priority order
+
+1. **Spacing tokens:** a small user-supplied local spacing scale, matching only explicitly calibrated measurements, with clear nearest-match feedback and CSS-variable copying. No claim of inspecting actual styles. Validate matching tolerance and ambiguous matches first.
+2. **Simple grids:** a configurable spacing grid on the active display with visible origin/spacing, using the existing unit/calibration contract and click-through state. Keep guides and area usable alongside it.
+3. **Reference overlays:** import an image as a manually aligned, adjustable-opacity reference; keep reference coordinates separate from measurement calibration. Defer capture-assisted comparison.
+
+Saved layouts and project profiles remain candidates after those workflows prove useful. Each candidate needs its own acceptance details and reviewed implementation slice; none is implicitly implemented by the image inspector.
 
 | Stage | Features | Trigger |
 | --- | --- | --- |

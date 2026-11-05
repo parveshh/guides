@@ -11,7 +11,8 @@ extension KeyboardShortcuts.Name {
 final class AppController: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private let preferences = GuidesPreferences()
-    private lazy var overlay = OverlayController(preferences: preferences)
+    private lazy var overlay = OverlayController(preferences: preferences, onInspectImage: { [weak self] in self?.inspectImage() })
+    private let imageInspector = ImageInspectorController()
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -22,6 +23,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(item("Edit Guides", #selector(editGuides)))
         menu.addItem(item("Measure Area", #selector(measureArea)))
+        menu.addItem(item("Inspect Image…", #selector(inspectImage)))
         menu.addItem(.separator())
         menu.addItem(item("Hide Measurements", #selector(hideMeasurements)))
         let clearItem = item("Clear Measurements", #selector(clearMeasurements))
@@ -55,6 +57,10 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     @objc private func editGuides() { overlay.edit(.guides) }
     @objc private func measureArea() { overlay.edit(.area) }
+    @objc private func inspectImage() {
+        overlay.hide()
+        imageInspector.show()
+    }
     @objc private func hideMeasurements() { overlay.hide() }
     @objc private func clearMeasurements() { overlay.clear() }
     @objc private func quit() { NSApp.terminate(nil) }

@@ -4,6 +4,7 @@ import GuidesCore
 struct OverlayControls: View {
     var model: EditorModel
     var onRulerAppearance: (RulerAppearance) -> Void
+    var onInspectImage: () -> Void
     var onTool: (MeasurementTool) -> Void
     var onCopy: () -> Void
     var onUnit: (MeasurementUnit) -> Void
@@ -48,6 +49,8 @@ struct OverlayControls: View {
     private var toolControls: some View {
         HStack(spacing: 10) {
             Menu {
+                Button("Inspect Image…", systemImage: "photo", action: onInspectImage)
+                Divider()
                 Picker("Ruler background", selection: Binding(get: { model.rulerAppearance }, set: { onRulerAppearance($0) })) {
                     ForEach(RulerAppearance.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
@@ -56,7 +59,7 @@ struct OverlayControls: View {
             }
             .menuStyle(.borderlessButton).fixedSize()
             .help("Ruler background: \(model.rulerAppearance.rawValue)")
-            .accessibilityLabel("Ruler background")
+            .accessibilityLabel("Tools and ruler appearance")
             .accessibilityValue(model.rulerAppearance.rawValue)
             Picker("Tool", selection: Binding(get: { model.presentation.tool }, set: { onTool($0) })) {
                 ForEach(MeasurementTool.allCases, id: \.self) { Text($0.rawValue).tag($0) }

@@ -1,6 +1,6 @@
 # Guides
 
-A native macOS menu bar utility for manual desktop guides and area measurements. This is a local, personal MVP. It does not capture the screen or inspect CSS, Figma layers, or other apps' data.
+A native macOS menu bar utility for manual desktop guides, area measurements, and inspecting supplied image files. This is a local, personal app. It does not capture the screen or inspect CSS, Figma layers, or other apps' data.
 
 ## Build and run
 
@@ -49,6 +49,14 @@ Click the canvas or an accessibility measurement element to focus measurement ke
 For example, 64 screen points at 200% scale is `32px`, or `2rem` with a 16px root. The app measures visible boundaries; it cannot infer exact padding, layout tokens, or source properties.
 
 Only one display is active at a time. Each display retains its own in-memory measurements, history, and calibration. Disconnecting a display or changing its logical size/backing scale clears that display's session and hides its overlay. Rearranging displays preserves their local measurements. Sleep hides the overlay; wake rechecks display configuration. Quitting starts all measurements and calibration fresh; the shortcut, root font size, and ruler appearance preferences remain.
+
+## Inspect an image
+
+Choose **Inspect Image…** from the menu bar or the toolbar’s ruler icon menu. Use **Open Image…** (Command-O), drop one local image into the window, or choose **Paste Image** (Command-V). Finder file copies preserve original file metadata; image-only clipboard copies are explicitly labelled as a clipboard representation, whose format and size can differ from the original file.
+
+The inspector shows original pixel dimensions with orientation applied, aspect ratio, format, byte size, and alpha-channel presence. **Copy Dimensions**, **Copy Width**, and **Copy Height** copy those values. DPI, desktop zoom, and ruler calibration do not change them. The preview is scaled; it is not an on-screen size measurement. An alpha channel indicates the ability to store transparency, not whether individual pixels are transparent.
+
+Imports use macOS Image I/O (including PNG, JPEG, TIFF, GIF and HEIC), up to 100 MiB per input. Multi-image files show only their primary image and total image count, without animation. SVG/PDF, remote URLs, file promises, and batch inspection are outside this slice. An import error retains the previous image. **Clear**, closing the window, or quitting discards it; images and file paths are not saved. File access is limited to user-selected inputs, with no capture permission or network access.
 
 ## Verification and scope
 
