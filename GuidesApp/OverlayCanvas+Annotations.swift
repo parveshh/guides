@@ -29,8 +29,10 @@ extension OverlayCanvas {
             }
             path.lineCapStyle = .round; path.lineJoinStyle = .round
             let width = CGFloat(shape.style.stroke.rawValue)
-            NSColor.black.withAlphaComponent(0.8).setStroke(); path.lineWidth = width + 2; path.stroke()
-            shape.style.color.nsColor.setStroke(); path.lineWidth = width; path.stroke()
+            if shape.style.color != .transparent {
+                NSColor.black.withAlphaComponent(0.8).setStroke(); path.lineWidth = width + 2; path.stroke()
+                shape.style.color.nsColor.setStroke(); path.lineWidth = width; path.stroke()
+            }
             if model.presentation.mode == .editing, model.isAnnotating, model.annotations.document.selectedID == shape.id {
                 let handles = shape.kind == .rectangle ? AreaHandle.allCases.map { $0.point(on: shape.bounds) } : [shape.start, shape.end]
                 for point in handles {
@@ -51,6 +53,7 @@ extension AnnotationColor {
         case .cyan: NSColor.cyan
         case .white: NSColor.white
         case .orange: NSColor.systemOrange
+        case .transparent: NSColor.clear
         }
     }
 }

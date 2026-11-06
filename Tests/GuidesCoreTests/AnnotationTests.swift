@@ -148,7 +148,7 @@ private func draw(_ session: inout AnnotationSession, _ tool: AnnotationTool, _ 
     #expect(session.document.shapes.isEmpty)
 }
 
-@Test func quickColorChangesOnlyTheSelectionAndFutureColor() throws {
+@Test func transparentColorPreservesShapesSpotlightAndHistory() throws {
     for tool in [AnnotationTool.rectangle, .line, .arrow] {
         var session = AnnotationSession(size: annotationSize)
         draw(&session, .rectangle, CGPoint(x: 10, y: 10), CGPoint(x: 80, y: 80))
@@ -158,20 +158,26 @@ private func draw(_ session: inout AnnotationSession, _ tool: AnnotationTool, _ 
         session.apply(style: AnnotationStyle(color: .white, stroke: .thick), spotlight: true, dimOpacity: 0.8)
         let before = session.document
 
-        session.setColor(.cyan)
-        #expect(session.document.selected?.style == AnnotationStyle(color: .cyan, stroke: .thick))
+        session.setColor(.transparent)
+        #expect(session.document.selected?.style == AnnotationStyle(color: .transparent, stroke: .thick))
         #expect(session.document.shapes.first == untouched)
         #expect(session.document.spotlightID == before.spotlightID && session.document.dimOpacity == 0.8)
-        #expect(session.style == AnnotationStyle(color: .cyan, stroke: .thick))
+        #expect(session.style == AnnotationStyle(color: .transparent, stroke: .thick))
         session.undo(); #expect(session.document == before)
-        session.redo(); #expect(session.document.selected?.style.color == .cyan)
+        session.redo(); #expect(session.document.selected?.style.color == .transparent)
+        session.select(nil)
+        session.begin(at: CGPoint(x: 250, y: 250)); session.end()
+        #expect(session.document.selectedID == selectedID)
+        session.nudge(dx: 10, dy: 0)
+        #expect(session.document.selected?.bounds.minX == 210)
+        session.undo()
         session.select(nil)
         let unselected = session.document
         session.setColor(.orange)
         #expect(session.document == unselected)
         draw(&session, .line, CGPoint(x: 400, y: 400), CGPoint(x: 500, y: 500))
         #expect(session.document.selected?.style == AnnotationStyle(color: .orange, stroke: .thick))
-        #expect(session.document.shapes.first(where: { $0.id == selectedID })?.style.color == .cyan)
+        #expect(session.document.shapes.first(where: { $0.id == selectedID })?.style.color == .transparent)
         session.undo(); #expect(session.document == unselected)
     }
 }

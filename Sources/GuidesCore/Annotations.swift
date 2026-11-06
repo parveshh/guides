@@ -5,7 +5,7 @@ public enum AnnotationTool: String, CaseIterable, Sendable {
     case select = "Select", arrow = "Arrow", line = "Line", rectangle = "Rectangle"
     public var kind: AnnotationKind? { AnnotationKind(rawValue: rawValue) }
 }
-public enum AnnotationColor: String, CaseIterable, Sendable { case pink = "Pink", yellow = "Yellow", cyan = "Cyan", white = "White", orange = "Orange" }
+public enum AnnotationColor: String, CaseIterable, Sendable { case pink = "Pink", yellow = "Yellow", cyan = "Cyan", white = "White", orange = "Orange", transparent = "Transparent" }
 public enum AnnotationStroke: Int, CaseIterable, Sendable { case thin = 2, regular = 4, thick = 6 }
 public struct AnnotationStyle: Equatable, Sendable {
     public var color: AnnotationColor = .pink

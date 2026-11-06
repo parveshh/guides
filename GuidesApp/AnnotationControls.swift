@@ -45,9 +45,7 @@ struct AnnotationControls: View {
                     optionsPresented = false
                     onColor(color)
                 } label: {
-                    Circle().fill(Color(nsColor: color.nsColor))
-                        .frame(width: 20, height: 20)
-                        .overlay(Circle().stroke(.white.opacity(0.6), lineWidth: 1))
+                    colorSwatch(color)
                         .overlay {
                             if selected { Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(.black) }
                         }
@@ -60,6 +58,20 @@ struct AnnotationControls: View {
                 .help("\(color.rawValue): colour the selection and new annotations")
             }
         }.fixedSize()
+    }
+
+    private func colorSwatch(_ color: AnnotationColor) -> some View {
+        VStack(spacing: 0) {
+            if color == .transparent {
+                HStack(spacing: 0) { Color.white; Color.gray }
+                HStack(spacing: 0) { Color.gray; Color.white }
+            } else {
+                Color(nsColor: color.nsColor)
+            }
+        }
+        .frame(width: 20, height: 20)
+        .clipShape(Circle())
+        .overlay(Circle().stroke(.white.opacity(0.6), lineWidth: 1))
     }
 
     private var optionsButton: some View {
