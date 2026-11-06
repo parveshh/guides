@@ -33,21 +33,7 @@ private final class SpacingTokensWindow: NSWindow {
         let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
         let key = event.charactersIgnoringModifiers?.lowercased()
         if modifiers == .command, key == "w" { performClose(nil); return true }
-        if let editor = firstResponder as? NSTextView {
-            if modifiers == .command {
-                switch key {
-                case "a": editor.selectAll(nil); return true
-                case "c": editor.copy(nil); return true
-                case "v": editor.pasteAsPlainText(nil); return true
-                case "x": editor.cut(nil); return true
-                case "z": editor.undoManager?.undo(); return true
-                default: break
-                }
-            }
-            if modifiers == [.command, .shift], key == "z" {
-                editor.undoManager?.redo(); return true
-            }
-        }
+        if TextEditingCommands.handle(event, responder: firstResponder) { return true }
         return super.performKeyEquivalent(with: event)
     }
 }

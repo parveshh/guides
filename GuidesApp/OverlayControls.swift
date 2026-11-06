@@ -10,11 +10,13 @@ struct OverlayControls: View {
     var onTool: (MeasurementTool) -> Void
     var onUnit: (MeasurementUnit) -> Void
     var onCalibration: (Calibration) -> Void
+    var onGrid: (GridConfiguration) -> Void
     var onUndo: () -> Void
     var onRedo: () -> Void
     var onPin: () -> Void
     var onHide: () -> Void
     @State private var calibrationPresented = false
+    @State private var gridPresented = false
     @State private var pendingUnit: MeasurementUnit?
 
     var body: some View {
@@ -29,9 +31,9 @@ struct OverlayControls: View {
         .buttonStyle(RailButtonStyle())
         .modifier(OverlaySurface())
         .padding(8)
-        .onChange(of: model.displayID) { _, _ in calibrationPresented = false }
+        .onChange(of: model.displayID) { _, _ in calibrationPresented = false; gridPresented = false }
         .onChange(of: model.presentation.mode) { _, mode in
-            if mode != .editing { calibrationPresented = false }
+            if mode != .editing { calibrationPresented = false; gridPresented = false }
         }
         .onChange(of: calibrationPresented) { _, visible in if !visible { pendingUnit = nil } }
     }
@@ -42,6 +44,12 @@ struct OverlayControls: View {
                 Button("Inspect Image…", systemImage: "photo", action: onInspectImage)
                 Button("Resize Window…", systemImage: "macwindow", action: onResizeWindow)
                 Button("Spacing Tokens…", systemImage: "list.bullet", action: onSpacingTokens)
+                Divider()
+                Button(model.grid.isEnabled ? "Hide Grid" : "Show Grid", systemImage: "grid") {
+                    var grid = model.grid
+                    grid.isEnabled.toggle()
+                    onGrid(grid)
+                }
                 Divider()
                 Picker("Ruler background", selection: Binding(get: { model.rulerAppearance }, set: { onRulerAppearance($0) })) {
                     ForEach(RulerAppearance.allCases, id: \.self) { Text($0.rawValue).tag($0) }
@@ -74,6 +82,7 @@ struct OverlayControls: View {
             .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
             .accessibilityLabel("Unit").accessibilityValue(model.unit.rawValue)
             Button(model.calibration.isConfirmed ? "Scale \(MeasurementText.number(model.calibration.pointsPerPixel * 100))%" : "Set scale…") {
+                gridPresented = false
                 pendingUnit = nil
                 calibrationPresented = true
             }
@@ -94,6 +103,19 @@ struct OverlayControls: View {
     private var actionControls: some View {
         HStack(spacing: 8) {
             Spacer(minLength: 0)
+            Button {
+                calibrationPresented = false
+                gridPresented = true
+            } label: { Image(systemName: "grid") }
+                .buttonStyle(RailButtonStyle(selected: model.grid.isEnabled))
+                .accessibilityLabel("Grid settings").accessibilityValue(model.grid.isEnabled ? "Shown" : "Hidden")
+                .help("Configure grid spacing, origin and opacity")
+                .popover(isPresented: $gridPresented) {
+                    GridEditor(configuration: model.grid, size: model.document.size, calibration: model.calibration,
+                        backingFactor: model.backingFactor,
+                        onApply: { grid in onGrid(grid); gridPresented = false },
+                        onCancel: { gridPresented = false })
+                }
             Button(action: onUndo) { Image(systemName: "arrow.uturn.backward") }
                 .disabled(!model.history.canUndo).help("Undo (⌘Z)").accessibilityLabel("Undo")
             Button(action: onRedo) { Image(systemName: "arrow.uturn.forward") }

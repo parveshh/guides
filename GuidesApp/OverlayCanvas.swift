@@ -164,7 +164,9 @@ final class OverlayCanvas: NSView {
     override func draw(_ dirtyRect: NSRect) {
         guard model.presentation.mode != .hidden else { return }
         labels.removeAll()
+        drawGrid()
         if model.presentation.mode == .editing { drawRulers() }
+        drawGridOrigin()
         drawArea()
         for guide in model.document.guides {
             let start = guide.axis == .horizontal ? CGPoint(x: 0, y: guide.position) : CGPoint(x: guide.position, y: 0)
@@ -207,6 +209,38 @@ final class OverlayCanvas: NSView {
                 : "Editing captures clicks · H/V adds · Shift pairs · Pin & work to use other apps · Esc hides")
         let rect = labelRect(text, centered: CGPoint(x: usableRect.midX, y: usableRect.maxY - 24))
         drawLabel(text, rect: rect, selected: false)
+        if model.grid.isEnabled {
+            drawLabel(model.gridStatus,
+                rect: labelRect(model.gridStatus, centered: CGPoint(x: usableRect.midX, y: usableRect.maxY - 54)), selected: false)
+        }
+    }
+
+    private func drawGrid() {
+        guard let geometry = model.gridGeometry else { return }
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSBezierPath(rect: bounds).addClip()
+        let path = NSBezierPath()
+        for x in geometry.verticalLines {
+            path.move(to: CGPoint(x: x, y: 0)); path.line(to: CGPoint(x: x, y: bounds.height))
+        }
+        for y in geometry.horizontalLines {
+            path.move(to: CGPoint(x: 0, y: y)); path.line(to: CGPoint(x: bounds.width, y: y))
+        }
+        NSColor.black.withAlphaComponent(model.grid.opacity).setStroke()
+        path.lineWidth = 2; path.stroke()
+        NSColor.cyan.withAlphaComponent(model.grid.opacity).setStroke()
+        path.lineWidth = 1 / model.backingFactor; path.stroke()
+    }
+
+    private func drawGridOrigin() {
+        guard model.gridGeometry != nil else { return }
+        let origin = model.grid.origin
+        let path = NSBezierPath(ovalIn: CGRect(x: origin.x - 5, y: origin.y - 5, width: 10, height: 10))
+        path.move(to: CGPoint(x: origin.x - 9, y: origin.y)); path.line(to: CGPoint(x: origin.x + 9, y: origin.y))
+        path.move(to: CGPoint(x: origin.x, y: origin.y - 9)); path.line(to: CGPoint(x: origin.x, y: origin.y + 9))
+        NSColor.black.setStroke(); path.lineWidth = 3; path.stroke()
+        NSColor.cyan.setStroke(); path.lineWidth = 1; path.stroke()
     }
 
     private func drawArea() {
@@ -325,6 +359,7 @@ final class OverlayCanvas: NSView {
         setAccessibilityElement(editing)
         setAccessibilityRole(.group)
         setAccessibilityLabel("Measurements")
+        setAccessibilityValue(model.grid.isEnabled ? model.gridStatus : "Grid hidden")
         setAccessibilityHelp("H and V add guides at the pointer. Bracket keys select; Shift extends a parallel pair. Arrow keys move the selection.")
         guard editing else { setAccessibilityChildren([]); accessibilityItems = [:]; return }
         var updated: [String: MeasurementAccessibilityElement] = [:]

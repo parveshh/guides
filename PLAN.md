@@ -187,7 +187,25 @@ Implementation: immutable validated scale and pure matcher in GuidesCore, saved 
 
 Research: Context7 supplied Apple's [TextEditor binding documentation](https://developer.apple.com/documentation/swiftui/texteditor). Native checks exposed that the accessory app has no Edit menu supplying standard text commands. Context7's AppKit answer covered text responders but not window key equivalents; installed NSResponder.h/NSText.h/NSTextView.h and the existing image-inspector window verified the required methods. The spacing editor handles Select All, Copy, Cut, Paste, Undo/Redo and Close while forwarding other shortcuts to SwiftUI. Native Select All/Paste/Undo/Redo/Command-S checks passed.
 
-Status: implementation and 60 core tests/Debug build pass; native checks verify editor validation, saved-scale relaunch, fresh geometry/calibration, explicit-calibration and dimension gating, exact 200% conversion, `var(--space-gap)` clipboard output, ambiguity disabling variable copy, and the expanded readout layout. Full VoiceOver, mixed-display and narrow-display native coverage remain manual limits in TESTING.md. The standard independent-review gate applies to this completed implementation.
+Status: committed as d07bcd6 after clean independent review. 60 core tests/Debug build passed; native checks verify editor validation, saved-scale relaunch, fresh geometry/calibration, explicit-calibration and dimension gating, exact 200% conversion, `var(--space-gap)` clipboard output, ambiguity disabling variable copy, and the expanded readout layout. Full VoiceOver, mixed-display and narrow-display native coverage remain manual limits in TESTING.md. The standard independent-review gate applies to this completed implementation.
+
+### Selected expansion: simple spacing grid
+
+The next roadmap slice adds a square spacing grid to the existing overlay. It is a manual visual reference on the active display and never claims to inspect an app's CSS grid or snap measurements.
+
+| ID | Story | Acceptance |
+| --- | --- | --- |
+| Q01 | Show and configure a grid. | The toolbar grid button opens settings; the tools menu offers Show/Hide Grid. Apply spacing, unit, origin X/Y and opacity atomically; invalid drafts retain the previous grid. Cancel discards the draft. Defaults: hidden, 8 screen pt, origin (0,0), 25% opacity. |
+| Q02 | Use explicit units and origin. | Square cells use Screen pt, Backing px, calibrated Design px or rem independently of the measurement readout's unit. Design/rem require the existing explicit calibration. Origin is always display-local screen points from its top-left corner, within the display bounds. The lattice extends in both directions from its origin. A contrasting origin marker and a spacing/origin badge remain visible. |
+| Q03 | Keep drawing bounded and understandable. | Spacing accepts positive finite values up to 1000000 in the selected unit; opacity is 10–80%. Require at least 4 screen pt between lines and at most 2048 lines per axis. A later scale/root change that makes rendering invalid pauses only the grid and displays a reason; valid settings recover it. Never silently draw a coarser grid. |
+| Q04 | Work alongside measurements. | Draw grid lines behind rulers/guides/Area without adding hit targets or snapping. Pin & work retains the grid while all overlay input passes through; Hide removes it with measurements. Clear Measurements and measurement undo leave grid settings intact. Calibration changes cell spacing around the fixed origin while leaving manual measurement geometry untouched. |
+| Q05 | Respect display sessions. | Retain grid configuration during hide/pin/resume and display switching. Grid settings and origin are session-only, independent on each display. Display disconnect or size/backing changes invalidate the affected grid with its measurement session; quitting starts with a hidden default grid. No permission, capture, integration or saved layout is added. |
+
+Implementation: validated GridConfiguration and bounded GridGeometry in GuidesCore; DisplaySession stores the configuration. The controller resolves geometry on existing refresh events. AppKit draws contrasting lines, origin and badge; SwiftUI provides the draft editor. Text commands are shared with the spacing-token window so field edits keep native Select All/Copy/Cut/Paste/Undo behavior. Rendering has no timer or idle polling.
+
+Research: Context7 resolved AppKit and supplied Apple's [NSBezierPath stroke](https://developer.apple.com/documentation/appkit/nsbezierpath) and [clipping](https://developer.apple.com/documentation/appkit/nsbezierpath/clip(_:)) APIs. A native check found that presenting grid settings from inside the tools menu did not show the popover. The final direct toolbar button follows the [SwiftUI popover example](https://developer.apple.com/documentation/swiftui/view/popover(ispresented:attachmentanchor:arrowedge:content:)); the toolbar is 40 points wider with its existing compact layout threshold adjusted. Existing panel click-through and graphics-state handling are reused.
+
+Status: implemented; 66 core tests and the native Debug build pass. Native checks cover settings presentation, text selection/entry, zero-spacing rejection, offset origin, grid/Area coexistence without snapping, calibration gating, density pause/recovery and pinned click/type-through. Full VoiceOver, hardware display switching, very narrow native layouts and exhaustive appearance combinations remain manual limits in TESTING.md. The mandatory independent-review gate applies before committing.
 
 ### Planned expansion: annotations and rectangle spotlight
 
@@ -213,13 +231,12 @@ Implementation outline: store annotation identities, shape geometry, styles and 
 
 Validation before review: geometry and hit-testing for every drag direction; endpoint/handle edits; zero-sized/cancelled rectangles; spotlight replacement and deletion through undo/redo; dim-mask interior/exterior and edge-of-display cases; coexistence with guides/Area; display invalidation; native click-through inside and outside the spotlight; hide/pin/resume, colour/opacity readability and keyboard/accessibility checks. Verify the underlying app stays live inside the clear region. Record unavailable display/assistive-technology checks explicitly.
 
-Status: planned only. Window resizing and spacing tokens were selected first; annotations remain a candidate for a future reviewed slice in the order below.
+Status: planned only. Window resizing, spacing tokens and simple grids were selected first; annotations remain a candidate for a future reviewed slice in the order below.
 
 ### Subsequent candidates, in priority order
 
-1. **Simple grids:** a configurable spacing grid on the active display with visible origin/spacing, using the existing unit/calibration contract and click-through state. Keep guides and area usable alongside it.
-2. **Reference overlays:** import an image as a manually aligned, adjustable-opacity reference; keep reference coordinates separate from measurement calibration. Defer capture-assisted comparison.
-3. **Annotations and spotlight:** arrows, lines and rectangles; a live, undimmed rectangular focus region with adjustable dimming outside it. See the stories above.
+1. **Reference overlays:** import an image as a manually aligned, adjustable-opacity reference; keep reference coordinates separate from measurement calibration. Defer capture-assisted comparison.
+2. **Annotations and spotlight:** arrows, lines and rectangles; a live, undimmed rectangular focus region with adjustable dimming outside it. See the stories above.
 
 Saved layouts and project profiles remain candidates after those workflows prove useful. Each candidate needs its own acceptance details and reviewed implementation slice; none is implicitly implemented by the image inspector.
 

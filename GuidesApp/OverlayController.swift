@@ -17,6 +17,9 @@ final class EditorModel {
     var displayID: UInt32?
     var rulerAppearance: RulerAppearance = .solid
     var spacingScale: SpacingScale = .empty
+    var grid = GridConfiguration()
+    var gridGeometry: GridGeometry?
+    var gridStatus = ""
     var spacingDistance: CGFloat? {
         if document.isAreaSelected, let rect = document.area?.rect {
             switch areaDimension {
@@ -64,6 +67,11 @@ final class OverlayPanel: NSPanel {
     var onCommand: ((NSEvent) -> Bool)?
     override var canBecomeKey: Bool { editing }
     override var canBecomeMain: Bool { false }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if TextEditingCommands.handle(event, responder: firstResponder) { return true }
+        return super.performKeyEquivalent(with: event)
+    }
 
     override func sendEvent(_ event: NSEvent) {
         if editing, event.type == .keyDown, event.keyCode == 53 {
@@ -133,6 +141,7 @@ final class OverlayController {
         model.calibration = session.calibration
         model.unit = session.unit
         model.areaDimension = session.areaDimension
+        model.grid = session.grid
         model.displayID = configuration.id
         if panel == nil { createPanel(screen: screen) }
         configureLayout(screen)
@@ -179,6 +188,7 @@ final class OverlayController {
             model.history = DocumentHistory()
             model.calibration = Calibration(rootPixels: preferences.rootPixels)
             model.unit = .screenPoints
+            model.grid = GridConfiguration()
             model.displayID = nil
         } else if let activeID, let screen = NSScreen.screens.first(where: { $0.guidesConfiguration?.id == activeID }) {
             configureLayout(screen)
@@ -193,6 +203,7 @@ final class OverlayController {
         session.calibration = model.calibration
         session.unit = model.unit
         session.areaDimension = model.areaDimension
+        session.grid = model.grid
         sessions.save(session)
     }
 
@@ -201,8 +212,8 @@ final class OverlayController {
         let usable = DisplayGeometry(frame: screen.frame).localRect(fromGlobal: screen.visibleFrame)
         canvas?.usableRect = usable
         model.backingFactor = screen.guidesConfiguration?.backingFactor ?? 1
-        model.controlsCompact = usable.width < 820
-        controlsWidth?.constant = max(240, min(820, usable.width - 32))
+        model.controlsCompact = usable.width < 860
+        controlsWidth?.constant = max(240, min(860, usable.width - 32))
         controlsHeight?.constant = model.controlsCompact ? 106 : 66
         controlsTop?.constant = usable.minY + 32
         panel?.contentView?.layoutSubtreeIfNeeded()
@@ -251,12 +262,17 @@ final class OverlayController {
                 self?.preferences.setRootPixels(calibration.rootPixels)
                 self?.refresh()
             },
+            onGrid: { [weak self] grid in
+                self?.canvas?.cancelGesture()
+                self?.model.grid = grid
+                self?.refresh()
+            },
             onUndo: { [weak self] in self?.undo() }, onRedo: { [weak self] in self?.redo() },
             onPin: { [weak self] in self?.pin() }, onHide: { [weak self] in self?.hide() }))
         controls.translatesAutoresizingMaskIntoConstraints = false
         controls.sizingOptions = []
         root.addSubview(controls)
-        controlsWidth = controls.widthAnchor.constraint(equalToConstant: 820)
+        controlsWidth = controls.widthAnchor.constraint(equalToConstant: 860)
         controlsHeight = controls.heightAnchor.constraint(equalToConstant: 66)
         controlsTop = controls.topAnchor.constraint(equalTo: root.topAnchor, constant: 40)
         NSLayoutConstraint.activate([
@@ -310,6 +326,16 @@ final class OverlayController {
     }
 
     private func refresh() {
+        model.gridGeometry = nil
+        model.gridStatus = ""
+        if model.grid.isEnabled {
+            do {
+                let geometry = try GridGeometry(configuration: model.grid, size: model.document.size,
+                    calibration: model.calibration, backingFactor: model.backingFactor)
+                model.gridGeometry = geometry
+                model.gridStatus = geometry.summary(configuration: model.grid, calibration: model.calibration)
+            } catch { model.gridStatus = "Grid paused · " + error.localizedDescription }
+        }
         controls?.isHidden = model.presentation.mode != .editing
         positionReadout()
         canvas?.updateAccessibility()

@@ -62,6 +62,16 @@ Select a guide gap or an area’s **Width** or **Height** and explicitly set its
 
 **Copy Variable** copies a reference such as `var(--space-2)` for a unique nearest match within tolerance. Ties, aliases with the same value and outside-tolerance suggestions cannot copy a variable automatically. **Copy** and Command-C still copy the measured value. Suggestions compare your supplied scale with a visual measurement; they do not inspect the app’s CSS or identify its actual design tokens.
 
+## Use a spacing grid
+
+Open the **grid icon** in the editing toolbar, enable **Show grid**, and set square-cell spacing, unit, origin and opacity. **Apply** updates the grid; **Cancel** discards changes. The ruler tools menu also offers **Show Grid / Hide Grid**. The origin marker and bottom badge identify the grid's spacing and position.
+
+Grid units are independent of the measurement readout. Design px and rem require **Set scale** first; changing calibration or the rem base changes those grid cells around their fixed origin. Origin X/Y are always screen points from the active display's top-left corner. For example, 8 Design px at 200% scale makes 16-screen-point cells. Backing px uses the active display's backing factor.
+
+Spacing must be positive and no more than 1000000 in the chosen unit; opacity is 10–80%. To avoid an unreadably dense overlay, the resulting spacing must be at least 4 screen points and generate no more than 2048 lines per axis. If a later calibration change exceeds those limits, a **Grid paused** badge explains how to recover. No grid lines are silently omitted.
+
+Guides and Area stay usable without snapping to the grid. **Pin & work** keeps the grid visible and passes input to the app below; **Hide** removes the whole overlay. Clear Measurements and measurement undo leave the grid alone. Grid settings are kept per display for the current session; quitting or invalidating a display starts its grid fresh and hidden.
+
 ## Inspect an image
 
 Choose **Inspect Image…** from the menu bar or the toolbar’s ruler icon menu. Use **Open Image…** (Command-O), drop one local image into the window, or choose **Paste Image** (Command-V). Finder file copies preserve original file metadata; image-only clipboard copies are explicitly labelled as a clipboard representation, whose format and size can differ from the original file.
