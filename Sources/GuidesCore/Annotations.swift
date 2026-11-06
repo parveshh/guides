@@ -118,7 +118,10 @@ public struct AnnotationSession: Sendable {
     public var canRedo: Bool { !future.isEmpty }
     public init(size: CGSize) { document = AnnotationDocument(size: size) }
 
-    public mutating func setTool(_ value: AnnotationTool) { cancel(); tool = value }
+    public mutating func setTool(_ value: AnnotationTool) {
+        cancel(); tool = value
+        if value.kind != nil { document.selectedID = nil }
+    }
     public mutating func select(_ id: UUID?) {
         cancel(); document.selectedID = document.shapes.first { $0.id == id }?.id; tool = .select
     }
@@ -176,6 +179,15 @@ public struct AnnotationSession: Sendable {
             let index = document.shapes.firstIndex(where: { $0.id == selected.id }) else { return }
         let before = document
         document.shapes[index] = AnnotationGeometry.moved(selected, dx: dx, dy: dy, within: document.size)
+        record(before)
+    }
+    public mutating func setColor(_ color: AnnotationColor) {
+        cancel()
+        let before = document
+        style.color = color
+        if let index = document.shapes.firstIndex(where: { $0.id == document.selectedID }) {
+            document.shapes[index].style.color = color
+        }
         record(before)
     }
     public mutating func apply(style: AnnotationStyle, spotlight: Bool, dimOpacity: CGFloat) {

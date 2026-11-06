@@ -238,7 +238,7 @@ final class OverlayController {
         model.backingFactor = screen.guidesConfiguration?.backingFactor ?? 1
         model.controlsCompact = usable.width < 1000
         controlsWidth?.constant = max(240, min(1000, usable.width - 32))
-        controlsHeight?.constant = (model.controlsCompact ? 106 : 66) + (model.isAnnotating ? 42 : 0)
+        controlsHeight?.constant = (model.controlsCompact ? 106 : 66) + (model.isAnnotating ? (model.controlsCompact ? 80 : 42) : 0)
         controlsTop?.constant = usable.minY + 32
         panel?.contentView?.layoutSubtreeIfNeeded()
         if let controls, let canvas { canvas.controlsRect = canvas.convert(controls.bounds, from: controls) }
@@ -309,6 +309,7 @@ final class OverlayController {
                 self?.model.reference.restore(nil)
             },
             onAnnotationTool: { [weak self] tool in self?.editAnnotations { $0.setTool(tool) } },
+            onAnnotationColor: { [weak self] color in self?.editAnnotations { $0.setColor(color) } },
             onAnnotationStyle: { [weak self] style, spotlight, opacity in
                 self?.editAnnotations { $0.apply(style: style, spotlight: spotlight, dimOpacity: opacity) }
             },
@@ -427,7 +428,7 @@ final class OverlayController {
             } catch { model.gridStatus = "Grid paused · " + error.localizedDescription }
         }
         controls?.isHidden = model.presentation.mode != .editing
-        controlsHeight?.constant = (model.controlsCompact ? 106 : 66) + (model.isAnnotating ? 42 : 0)
+        controlsHeight?.constant = (model.controlsCompact ? 106 : 66) + (model.isAnnotating ? (model.controlsCompact ? 80 : 42) : 0)
         if let canvas, let root = panel?.contentView, !model.annotations.isDragging {
             let height = controlsHeight?.constant ?? 66, width = controlsWidth?.constant ?? 1000
             let preferred = CGRect(x: canvas.usableRect.midX - width / 2, y: canvas.usableRect.minY + 32, width: width, height: height)

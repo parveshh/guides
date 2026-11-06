@@ -43,7 +43,7 @@ extension OverlayCanvas {
     }
 }
 
-private extension AnnotationColor {
+extension AnnotationColor {
     var nsColor: NSColor {
         switch self {
         case .pink: NSColor.systemPink

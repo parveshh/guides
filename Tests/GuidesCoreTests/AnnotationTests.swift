@@ -45,12 +45,14 @@ private func draw(_ session: inout AnnotationSession, _ tool: AnnotationTool, _ 
     let before = session.document
     for tool in AnnotationTool.allCases where tool != .select {
         draw(&session, tool, CGPoint(x: 300, y: 300), CGPoint(x: 300, y: 300))
-        #expect(session.document == before)
+        #expect(session.document.shapes == before.shapes && session.document.spotlightID == before.spotlightID)
+        #expect(session.document.selectedID == nil)
     }
     draw(&session, .rectangle, CGPoint(x: 200, y: 200), CGPoint(x: 200, y: 300))
-    #expect(session.document == before)
+    #expect(session.document.shapes == before.shapes && session.document.spotlightID == before.spotlightID)
+    let deselected = session.document
     session.setTool(.line); session.begin(at: CGPoint(x: CGFloat.nan, y: 10))
-    #expect(!session.isDragging && session.document == before)
+    #expect(!session.isDragging && session.document == deselected)
 }
 
 @Test func lineAndArrowEndpointsCanBeEditedInBothDirections() throws {
@@ -79,7 +81,9 @@ private func draw(_ session: inout AnnotationSession, _ tool: AnnotationTool, _ 
     #expect(session.document.selected?.bounds == CGRect(x: 300, y: 250, width: 100, height: 50))
     session.undo(); #expect(session.document == before)
     session.begin(at: CGPoint(x: 100, y: 100)); session.drag(to: CGPoint(x: 150, y: 150))
-    session.setTool(.arrow); #expect(session.document == before && !session.isDragging)
+    session.setTool(.arrow)
+    #expect(session.document.shapes == before.shapes && session.document.spotlightID == before.spotlightID)
+    #expect(session.document.selectedID == nil && !session.isDragging)
 }
 
 @Test func hitTestingUsesTopmostShapeAndSelectedHandles() throws {
@@ -142,6 +146,56 @@ private func draw(_ session: inout AnnotationSession, _ tool: AnnotationTool, _ 
     #expect(session.document.selected?.bounds.origin == .zero && !session.canRedo)
     session.undo(); session.undo(); session.undo()
     #expect(session.document.shapes.isEmpty)
+}
+
+@Test func quickColorChangesOnlyTheSelectionAndFutureColor() throws {
+    for tool in [AnnotationTool.rectangle, .line, .arrow] {
+        var session = AnnotationSession(size: annotationSize)
+        draw(&session, .rectangle, CGPoint(x: 10, y: 10), CGPoint(x: 80, y: 80))
+        let untouched = try #require(session.document.selected)
+        draw(&session, tool, CGPoint(x: 200, y: 200), CGPoint(x: 300, y: 300))
+        let selectedID = try #require(session.document.selectedID)
+        session.apply(style: AnnotationStyle(color: .white, stroke: .thick), spotlight: true, dimOpacity: 0.8)
+        let before = session.document
+
+        session.setColor(.cyan)
+        #expect(session.document.selected?.style == AnnotationStyle(color: .cyan, stroke: .thick))
+        #expect(session.document.shapes.first == untouched)
+        #expect(session.document.spotlightID == before.spotlightID && session.document.dimOpacity == 0.8)
+        #expect(session.style == AnnotationStyle(color: .cyan, stroke: .thick))
+        session.undo(); #expect(session.document == before)
+        session.redo(); #expect(session.document.selected?.style.color == .cyan)
+        session.select(nil)
+        let unselected = session.document
+        session.setColor(.orange)
+        #expect(session.document == unselected)
+        draw(&session, .line, CGPoint(x: 400, y: 400), CGPoint(x: 500, y: 500))
+        #expect(session.document.selected?.style == AnnotationStyle(color: .orange, stroke: .thick))
+        #expect(session.document.shapes.first(where: { $0.id == selectedID })?.style.color == .cyan)
+        session.undo(); #expect(session.document == unselected)
+    }
+}
+
+@Test func drawingToolsUseTheFutureColorAfterUndoOrSelectingAnOlderShape() throws {
+    var session = AnnotationSession(size: annotationSize)
+    session.setColor(.yellow)
+    #expect(!session.canUndo)
+    draw(&session, .rectangle, CGPoint(x: 20, y: 20), CGPoint(x: 100, y: 100))
+    let first = try #require(session.document.selected)
+    session.setColor(.cyan); session.undo()
+    #expect(session.document.selected?.style.color == .yellow && session.style.color == .cyan)
+    session.setTool(.line)
+    #expect(session.document.selected == nil && session.style.color == .cyan)
+    session.setColor(.orange)
+    #expect(session.document.shapes == [first])
+    draw(&session, .line, CGPoint(x: 200, y: 200), CGPoint(x: 300, y: 300))
+    #expect(session.document.selected?.style.color == .orange)
+    session.select(first.id)
+    #expect(session.document.selected?.style.color == .yellow)
+    session.setTool(.arrow)
+    #expect(session.document.selected == nil && session.style.color == .orange)
+    draw(&session, .arrow, CGPoint(x: 400, y: 400), CGPoint(x: 500, y: 500))
+    #expect(session.document.selected?.style.color == .orange && session.document.shapes.first == first)
 }
 
 @Test func annotationsShareDisplayLifecycleButNotMeasurementState() throws {

@@ -16,6 +16,7 @@ struct OverlayControls: View {
     var onReferenceAlign: () -> Void
     var onReferenceRemove: () -> Void
     var onAnnotationTool: (AnnotationTool) -> Void
+    var onAnnotationColor: (AnnotationColor) -> Void
     var onAnnotationStyle: (AnnotationStyle, Bool, CGFloat) -> Void
     var onAnnotationDelete: () -> Void
     var onAnnotationClear: () -> Void
@@ -36,7 +37,7 @@ struct OverlayControls: View {
             }
             if model.controlsCompact { HStack { Spacer(); actionControls } }
             if model.isAnnotating {
-                AnnotationControls(model: model, onTool: onAnnotationTool, onStyle: onAnnotationStyle,
+                AnnotationControls(model: model, onTool: onAnnotationTool, onColor: onAnnotationColor, onStyle: onAnnotationStyle,
                     onDelete: onAnnotationDelete, onClear: onAnnotationClear)
             }
         }
