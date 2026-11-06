@@ -6,6 +6,7 @@ struct OverlayControls: View {
     var onRulerAppearance: (RulerAppearance) -> Void
     var onInspectImage: () -> Void
     var onResizeWindow: () -> Void
+    var onSpacingTokens: () -> Void
     var onTool: (MeasurementTool) -> Void
     var onUnit: (MeasurementUnit) -> Void
     var onCalibration: (Calibration) -> Void
@@ -40,6 +41,7 @@ struct OverlayControls: View {
             Menu {
                 Button("Inspect Image…", systemImage: "photo", action: onInspectImage)
                 Button("Resize Window…", systemImage: "macwindow", action: onResizeWindow)
+                Button("Spacing Tokens…", systemImage: "list.bullet", action: onSpacingTokens)
                 Divider()
                 Picker("Ruler background", selection: Binding(get: { model.rulerAppearance }, set: { onRulerAppearance($0) })) {
                     ForEach(RulerAppearance.allCases, id: \.self) { Text($0.rawValue).tag($0) }

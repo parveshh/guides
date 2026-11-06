@@ -50,7 +50,17 @@ Click the canvas or an accessibility measurement element to focus measurement ke
 
 For example, 64 screen points at 200% scale is `32px`, or `2rem` with a 16px root. The app measures visible boundaries; it cannot infer exact padding, layout tokens, or source properties.
 
-Only one display is active at a time. Each display retains its own in-memory measurements, history, and calibration. Disconnecting a display or changing its logical size/backing scale clears that display's session and hides its overlay. Rearranging displays preserves their local measurements. Sleep hides the overlay; wake rechecks display configuration. Quitting starts all measurements and calibration fresh; the shortcut, root font size, and ruler appearance preferences remain.
+Only one display is active at a time. Each display retains its own in-memory measurements, history, and calibration. Disconnecting a display or changing its logical size/backing scale clears that display's session and hides its overlay. Rearranging displays preserves their local measurements. Sleep hides the overlay; wake rechecks display configuration. Quitting starts all measurements and calibration fresh; the shortcut, root font size, ruler appearance, and spacing-scale preferences remain.
+
+## Compare spacing tokens
+
+Choose **Spacing Tokens…** from the menu bar or toolbar’s ruler menu. Enter one declaration per line, such as `--space-2: 8px;`, or choose **Use Example**, then **Save Scale** (Command-S). Standard Select All, Copy, Cut, Paste, Undo/Redo and Close shortcuts work in this editor. Closing or **Cancel** discards unsaved edits; **Clear Draft** followed by Save removes the scale.
+
+Use up to 64 tokens with nonnegative decimal `px` values (0–1000000). Names start with `--` and an ASCII letter or underscore, followed by ASCII letters, digits, underscores or hyphens, up to 64 characters total. Names are case-sensitive and unique; equal-valued aliases are allowed. This accepts a declaration list, without selectors, braces, comments, `rem`, expressions or CSS-file imports. The scale and tolerance are saved locally.
+
+Select a guide gap or an area’s **Width** or **Height** and explicitly set its calibration. The nearby readout compares the unrounded measurement in design pixels against your scale, even if the measurement display uses Screen pt, Backing px or rem. It shows an exact or nearest suggestion and the difference from that token. The tolerance is an absolute distance in design pixels, initially 1; 0 requires an exact match and 100 is the maximum.
+
+**Copy Variable** copies a reference such as `var(--space-2)` for a unique nearest match within tolerance. Ties, aliases with the same value and outside-tolerance suggestions cannot copy a variable automatically. **Copy** and Command-C still copy the measured value. Suggestions compare your supplied scale with a visual measurement; they do not inspect the app’s CSS or identify its actual design tokens.
 
 ## Inspect an image
 

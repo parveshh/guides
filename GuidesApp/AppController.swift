@@ -15,9 +15,11 @@ final class AppController: NSObject, NSApplicationDelegate {
         return GuidesPreferences()
     }()
     private lazy var overlay = OverlayController(preferences: preferences, onInspectImage: { [weak self] in self?.inspectImage() },
-        onResizeWindow: { [weak self] in self?.resizeWindow() })
+        onResizeWindow: { [weak self] in self?.resizeWindow() },
+        onSpacingTokens: { [weak self] in self?.editSpacingTokens() })
     private let imageInspector = ImageInspectorController()
     private let windowResizer = WindowResizeController()
+    private let spacingTokens = SpacingTokensController()
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -31,6 +33,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         menu.addItem(item("Measure Area", #selector(measureArea)))
         menu.addItem(item("Inspect Image…", #selector(inspectImage)))
         menu.addItem(item("Resize Window…", #selector(resizeWindow)))
+        menu.addItem(item("Spacing Tokens…", #selector(editSpacingTokens)))
         menu.addItem(.separator())
         menu.addItem(item("Hide Measurements", #selector(hideMeasurements)))
         let clearItem = item("Clear Measurements", #selector(clearMeasurements))
@@ -71,6 +74,10 @@ final class AppController: NSObject, NSApplicationDelegate {
     @objc private func resizeWindow() {
         overlay.hide()
         windowResizer.show()
+    }
+    @objc private func editSpacingTokens() {
+        overlay.hide()
+        spacingTokens.show(preferences: preferences)
     }
     @objc private func hideMeasurements() { overlay.hide() }
     @objc private func clearMeasurements() { overlay.clear() }

@@ -16,6 +16,25 @@ final class EditorModel {
     var controlsCompact = false
     var displayID: UInt32?
     var rulerAppearance: RulerAppearance = .solid
+    var spacingScale: SpacingScale = .empty
+    var spacingDistance: CGFloat? {
+        if document.isAreaSelected, let rect = document.area?.rect {
+            switch areaDimension {
+            case .width: return rect.width
+            case .height: return rect.height
+            case .both: return nil
+            }
+        }
+        return document.selectedGap?.distance
+    }
+    var spacingMatch: SpacingMatch? {
+        spacingDistance.flatMap { spacingScale.match(screenDistance: $0, calibration: calibration) }
+    }
+    var spacingHint: String {
+        if !calibration.isConfirmed { return "Set scale to compare spacing tokens." }
+        if document.isAreaSelected && areaDimension == .both { return "Select Width or Height to compare tokens." }
+        return "This measurement cannot be compared."
+    }
     var copyText: String? {
         if document.isAreaSelected, let rect = document.area?.rect, rect.width > 0, rect.height > 0 {
             return MeasurementEngine.areaText(rect, dimension: areaDimension, unit: unit,
@@ -63,6 +82,7 @@ final class OverlayController {
     private let preferences: GuidesPreferences
     private let onInspectImage: () -> Void
     private let onResizeWindow: () -> Void
+    private let onSpacingTokens: () -> Void
     private var panel: OverlayPanel?
     private var canvas: OverlayCanvas?
     private var controls: NSHostingView<OverlayControls>?
@@ -73,12 +93,19 @@ final class OverlayController {
     private var controlsHeight: NSLayoutConstraint?
     private var controlsTop: NSLayoutConstraint?
 
-    init(preferences: GuidesPreferences, onInspectImage: @escaping () -> Void, onResizeWindow: @escaping () -> Void) {
+    init(preferences: GuidesPreferences, onInspectImage: @escaping () -> Void, onResizeWindow: @escaping () -> Void,
+         onSpacingTokens: @escaping () -> Void) {
         self.preferences = preferences
         self.onInspectImage = onInspectImage
         self.onResizeWindow = onResizeWindow
+        self.onSpacingTokens = onSpacingTokens
         model.calibration.setRootPixels(preferences.rootPixels)
         model.rulerAppearance = preferences.rulerAppearance
+        model.spacingScale = preferences.spacingScale
+        preferences.onSpacingScaleChange = { [weak self] value in
+            self?.model.spacingScale = value
+            self?.refresh()
+        }
         preferences.onRootChange = { [weak self] value in
             self?.model.calibration.setRootPixels(value)
             self?.refresh()
@@ -216,7 +243,7 @@ final class OverlayController {
         root.addSubview(canvas)
         let controls = NSHostingView(rootView: OverlayControls(model: model,
             onRulerAppearance: { [weak self] in self?.preferences.setRulerAppearance($0) },
-            onInspectImage: onInspectImage, onResizeWindow: onResizeWindow,
+            onInspectImage: onInspectImage, onResizeWindow: onResizeWindow, onSpacingTokens: onSpacingTokens,
             onTool: { [weak self] tool in self?.canvas?.cancelGesture(); self?.model.presentation.edit(tool); self?.refresh() },
             onUnit: { [weak self] unit in self?.model.unit = unit; self?.refresh() },
             onCalibration: { [weak self] calibration in
@@ -238,7 +265,8 @@ final class OverlayController {
         ])
         let readout = NSHostingView(rootView: MeasurementReadout(model: model,
             onDimension: { [weak self] dimension in self?.model.areaDimension = dimension; self?.refresh() },
-            onCopy: { [weak self] in self?.copySelection() }))
+            onCopy: { [weak self] in self?.copySelection() },
+            onCopyVariable: { [weak self] in self?.copyVariable() }))
         readout.sizingOptions = []
         readout.isHidden = true
         root.addSubview(readout)
@@ -275,6 +303,12 @@ final class OverlayController {
         NSPasteboard.general.setString(text, forType: .string)
     }
 
+    private func copyVariable() {
+        guard let text = model.spacingMatch?.copyReference else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
     private func refresh() {
         controls?.isHidden = model.presentation.mode != .editing
         positionReadout()
@@ -297,7 +331,9 @@ final class OverlayController {
         else { return }
         let valueWidth = (model.selectedText as NSString).size(withAttributes: [.font: NSFont.monospacedSystemFont(ofSize: 16, weight: .semibold)]).width
         let contextWidth = (model.contextText as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11)]).width
-        let size = CGSize(width: min(460, max(300, max(valueWidth, contextWidth) + 140)), height: area == nil ? 76 : 115)
+        let hasTokens = !model.spacingScale.tokens.isEmpty
+        let size = CGSize(width: min(460, max(hasTokens ? 420 : 300, max(valueWidth, contextWidth) + 140)),
+            height: (area == nil ? 76 : 115) + (hasTokens ? 100 : 0))
         let frame = MeasurementReadoutLayout.frame(size: size, anchor: anchor, beside: gap?.axis == .horizontal,
             usable: canvas.usableRect, toolbar: canvas.controlsRect, area: area)
         readout.frame = canvas.convert(frame, to: root)
