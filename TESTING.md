@@ -68,7 +68,7 @@ Environment: Apple Silicon, macOS 27.0.1 (26A434), Xcode 26.6 (17F113), Swift 6.
 | Lifecycle/performance | Event-driven implementation with no timers or capture loop; prolonged idle resource measurements unverified |
 | Compatibility | Current Apple Silicon Mac only; macOS 14–26, other Macs, Intel and distribution signing unverified/out of personal MVP scope |
 
-Manual follow-up: open the built app, use the controls in README, and exercise the remaining rows on the relevant hardware. No permission grants or screen capture features are needed by Guides. Do not equate a successful build or a visible accessibility tree with a completed visual acceptance test.
+Manual follow-up: open the built app, use the controls in README, and exercise the remaining rows on the relevant hardware. No permission grants are needed by the measurement tools. The later window-resize expansion requires optional Accessibility access. Guides has no screen capture features. Do not equate a successful build or a visible accessibility tree with a completed visual acceptance test.
 
 ## Numbered rulers and appearance follow-up
 
@@ -95,3 +95,14 @@ Manual follow-up: open the built app, use the controls in README, and exercise t
 - LIMIT: concurrent desktop changes interrupted automated key/drag attempts. The physical shortcut toggle, the new area dimension buttons, final readout Copy round trip, narrow-display rendering and full VoiceOver navigation remain manual checks. Core geometry/formatting and existing copy handlers pass. No unperformed interaction is counted as passed.
 - Visual evidence and intended departures from the mock are recorded in design-qa.md.
 - Review correction: area dimension buttons announce Select width/height/both, matching their selection-only action; Copy remains a separate action.
+
+## Window resize expansion
+
+- PASS: 53 core tests. Seven new tests cover integer bounds and malformed/overflow inputs, screen-point semantics, no service call for invalid sizes, actual clamped values, Restore retaining the exact target, recovery after an unverified write, denied/missing/stale/unsupported targets and rejection of late results after closing. These use a deterministic service double; they do not prove AX writes work in another app.
+- PASS: native Debug build with no app-source warnings; signature has no App Sandbox entitlement, as selected by the user. The relaunched app retains the Transparent ruler preference.
+- PASS, permission-denied view: native screenshot and AX tree show the explanatory access panel, Request/Check buttons, app picker and 2560×1440 fields. Capture/Resize/Restore are disabled and the whole layout is readable. No permission grant was performed by automation.
+- PASS: after the user enabled Accessibility, Finder accepted 1280×720 screen points; native screenshot dimensions (2560×1440 at 2x) corroborated the window size. ChatGPT's existing 2560×1440 request showed a clamped result of 2560×1347, and Restore confirmed its previous 1920×1080 frame.
+- FOUND / FIX VERIFIED on 2026-11-06: Finder Restore twice left its size at 1280×720 after back-to-back size and position writes. A later screenshot ruled out only an early read; setting the original 1203×908 size alone succeeded, ruling out size limits. Restore now waits for size to settle before setting position. This OS/application interaction has no faithful unit-test seam in the service double; the native resize/restore loop is its regression check.
+- PASS, permission recovery: System Settings showed Guides on while Check Access remained denied, including after relaunch of the unchanged build. With explicit user approval, removed only Guides’ entry and re-added the exact build/DerivedData/Build/Products/Debug/Guides.app. Check Access then showed Accessibility access enabled and read the selected window’s metadata. No resizing was performed during repair.
+- PASS on 2026-11-06, resumed by user: Finder resized from 1203×908 to 1280×720 and Restore reported the original size and position restored, with Restore disabled afterwards. Out-of-range inputs showed validation without a resize. Closing the chosen Finder window produced a stale-target message; choosing a fresh window recovered. Temporary test windows were closed. The native Debug build and all 53 core tests pass. Native AX text-setting did not reliably update SwiftUI bindings, so the successful resize used the 1280×720 preset.
+- Remaining platform coverage: multiple browsers, full-screen and nonstandard windows, mixed-DPI displays, permission revocation, unresponsive apps, older macOS, and a real migration from the previously sandboxed build.

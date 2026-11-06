@@ -6,7 +6,7 @@
 - Deliver the implementation slices in order. Keep every app slice buildable and each commit focused.
 - Use Swift, AppKit for desktop windows/input, and SwiftUI for controls and settings. Keep geometry, conversions, and editing state independent of window code.
 - Distinguish macOS screen points, backing pixels, calibrated design/CSS pixels, and rem. Never present a visual measurement as an inspected CSS or Figma property.
-- Keep the MVP local and permission-free. Do not add capture, integrations, accounts, billing, or public distribution features.
+- Keep measurement and local image tools usable without privacy grants. The user authorized one app outside App Sandbox with optional Accessibility access for the post-MVP window resize tool; request that permission only from its explicit button. Do not add capture, integrations, accounts, billing, or public distribution features.
 - Update `PLAN.md` when implementation evidence changes an approach or a slice is completed. Preserve unrelated user changes.
 
 ## Documentation through Context7

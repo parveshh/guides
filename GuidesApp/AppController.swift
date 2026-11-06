@@ -10,13 +10,19 @@ extension KeyboardShortcuts.Name {
 @MainActor
 final class AppController: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
-    private let preferences = GuidesPreferences()
-    private lazy var overlay = OverlayController(preferences: preferences, onInspectImage: { [weak self] in self?.inspectImage() })
+    private let preferences: GuidesPreferences = {
+        PreferenceMigration.importSandboxSettings()
+        return GuidesPreferences()
+    }()
+    private lazy var overlay = OverlayController(preferences: preferences, onInspectImage: { [weak self] in self?.inspectImage() },
+        onResizeWindow: { [weak self] in self?.resizeWindow() })
     private let imageInspector = ImageInspectorController()
+    private let windowResizer = WindowResizeController()
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        windowResizer.startTracking()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "ruler", accessibilityDescription: "Guides")
         statusItem.button?.toolTip = "Guides — desktop measurements"
@@ -24,6 +30,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         menu.addItem(item("Edit Guides", #selector(editGuides)))
         menu.addItem(item("Measure Area", #selector(measureArea)))
         menu.addItem(item("Inspect Image…", #selector(inspectImage)))
+        menu.addItem(item("Resize Window…", #selector(resizeWindow)))
         menu.addItem(.separator())
         menu.addItem(item("Hide Measurements", #selector(hideMeasurements)))
         let clearItem = item("Clear Measurements", #selector(clearMeasurements))
@@ -60,6 +67,10 @@ final class AppController: NSObject, NSApplicationDelegate {
     @objc private func inspectImage() {
         overlay.hide()
         imageInspector.show()
+    }
+    @objc private func resizeWindow() {
+        overlay.hide()
+        windowResizer.show()
     }
     @objc private func hideMeasurements() { overlay.hide() }
     @objc private func clearMeasurements() { overlay.clear() }

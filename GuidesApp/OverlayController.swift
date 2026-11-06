@@ -62,6 +62,7 @@ final class OverlayController {
     let model = EditorModel()
     private let preferences: GuidesPreferences
     private let onInspectImage: () -> Void
+    private let onResizeWindow: () -> Void
     private var panel: OverlayPanel?
     private var canvas: OverlayCanvas?
     private var controls: NSHostingView<OverlayControls>?
@@ -72,9 +73,10 @@ final class OverlayController {
     private var controlsHeight: NSLayoutConstraint?
     private var controlsTop: NSLayoutConstraint?
 
-    init(preferences: GuidesPreferences, onInspectImage: @escaping () -> Void) {
+    init(preferences: GuidesPreferences, onInspectImage: @escaping () -> Void, onResizeWindow: @escaping () -> Void) {
         self.preferences = preferences
         self.onInspectImage = onInspectImage
+        self.onResizeWindow = onResizeWindow
         model.calibration.setRootPixels(preferences.rootPixels)
         model.rulerAppearance = preferences.rulerAppearance
         preferences.onRootChange = { [weak self] value in
@@ -214,7 +216,7 @@ final class OverlayController {
         root.addSubview(canvas)
         let controls = NSHostingView(rootView: OverlayControls(model: model,
             onRulerAppearance: { [weak self] in self?.preferences.setRulerAppearance($0) },
-            onInspectImage: onInspectImage,
+            onInspectImage: onInspectImage, onResizeWindow: onResizeWindow,
             onTool: { [weak self] tool in self?.canvas?.cancelGesture(); self?.model.presentation.edit(tool); self?.refresh() },
             onUnit: { [weak self] unit in self?.model.unit = unit; self?.refresh() },
             onCalibration: { [weak self] calibration in

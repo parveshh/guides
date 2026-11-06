@@ -5,6 +5,7 @@ struct OverlayControls: View {
     var model: EditorModel
     var onRulerAppearance: (RulerAppearance) -> Void
     var onInspectImage: () -> Void
+    var onResizeWindow: () -> Void
     var onTool: (MeasurementTool) -> Void
     var onUnit: (MeasurementUnit) -> Void
     var onCalibration: (Calibration) -> Void
@@ -38,6 +39,7 @@ struct OverlayControls: View {
         HStack(spacing: 10) {
             Menu {
                 Button("Inspect Image…", systemImage: "photo", action: onInspectImage)
+                Button("Resize Window…", systemImage: "macwindow", action: onResizeWindow)
                 Divider()
                 Picker("Ruler background", selection: Binding(get: { model.rulerAppearance }, set: { onRulerAppearance($0) })) {
                     ForEach(RulerAppearance.allCases, id: \.self) { Text($0.rawValue).tag($0) }

@@ -1,6 +1,6 @@
 # Guides
 
-A native macOS menu bar utility for manual desktop guides, area measurements, and inspecting supplied image files. This is a local, personal app. It does not capture the screen or inspect CSS, Figma layers, or other apps' data.
+A native macOS menu bar utility for manual desktop guides, area measurements, inspecting supplied image files, and resizing windows. This is a local, personal app. It does not capture the screen or inspect CSS or Figma layers. The optional window tool reads the chosen window’s title and frame through macOS Accessibility.
 
 ## Build and run
 
@@ -58,7 +58,15 @@ Choose **Inspect Image…** from the menu bar or the toolbar’s ruler icon menu
 
 The inspector shows original pixel dimensions with orientation applied, aspect ratio, format, byte size, and alpha-channel presence. **Copy Dimensions**, **Copy Width**, and **Copy Height** copy those values. DPI, desktop zoom, and ruler calibration do not change them. The preview is scaled; it is not an on-screen size measurement. An alpha channel indicates the ability to store transparency, not whether individual pixels are transparent.
 
-Imports use macOS Image I/O (including PNG, JPEG, TIFF, GIF and HEIC), up to 100 MiB per input. Multi-image files show only their primary image and total image count, without animation. SVG/PDF, remote URLs, file promises, and batch inspection are outside this slice. An import error retains the previous image. **Clear**, closing the window, or quitting discards it; images and file paths are not saved. File access is limited to user-selected inputs, with no capture permission or network access.
+Imports use macOS Image I/O (including PNG, JPEG, TIFF, GIF and HEIC), up to 100 MiB per input. Multi-image files show only their primary image and total image count, without animation. SVG/PDF, remote URLs, file promises, and batch inspection are outside this slice. An import error retains the previous image. **Clear**, closing the window, or quitting discards it; images and file paths are not saved. The inspector reads only supplied inputs, with no capture permission or network feature. The app now runs outside App Sandbox to support optional window resizing.
+
+## Resize a window
+
+Choose **Resize Window…** from the menu bar or the toolbar’s ruler menu. Select an app and **Use App’s Front Window**. Check its title, enter width and height in **screen points** (or choose a preset), then **Resize Window**. The tool reads back the accepted size and reports constraints. **Restore Previous Frame** restores the size and position saved before the latest resize attempt on that same window. Refreshing the target or closing the tool discards its recovery session.
+
+A 2560 × 1440 window includes browser toolbars and borders. It is not a 2560 × 1440 CSS viewport or a monitor-resolution change. Browser zoom and display scaling also affect that comparison. Use browser responsive design tools when the requirement is an exact website viewport. Apps may restrict large or small windows; Guides reports the actual result.
+
+Window resizing requires **Guides** to be enabled in **System Settings → Privacy & Security → Accessibility**. Use the tool’s **Request Accessibility Access** button, grant access yourself, then **Check Access**. This locally signed development build may lose access after rebuilding. If the switch is on but Check Access still reports denied, remove only Guides from the privacy list, use + to add the current `build/DerivedData/Build/Products/Debug/Guides.app`, enable it, then Check Access again. On the tested macOS 27 system, the privacy list is named **Device Control and Data Access**. Measurement and image tools remain usable without this permission. The user-selected packaging is one app outside App Sandbox, with no network or capture features. Existing known local preferences are imported once from the former sandbox store without overwriting newer values.
 
 ## Verification and scope
 
