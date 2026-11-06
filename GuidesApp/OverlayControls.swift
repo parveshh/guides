@@ -7,7 +7,7 @@ struct OverlayControls: View {
     var onInspectImage: () -> Void
     var onResizeWindow: () -> Void
     var onSpacingTokens: () -> Void
-    var onTool: (MeasurementTool) -> Void
+    var onTool: (OverlayTool) -> Void
     var onUnit: (MeasurementUnit) -> Void
     var onCalibration: (Calibration) -> Void
     var onGrid: (GridConfiguration) -> Void
@@ -15,6 +15,10 @@ struct OverlayControls: View {
     var onReferenceApply: (ReferencePlacement) -> Void
     var onReferenceAlign: () -> Void
     var onReferenceRemove: () -> Void
+    var onAnnotationTool: (AnnotationTool) -> Void
+    var onAnnotationStyle: (AnnotationStyle, Bool, CGFloat) -> Void
+    var onAnnotationDelete: () -> Void
+    var onAnnotationClear: () -> Void
     var onUndo: () -> Void
     var onRedo: () -> Void
     var onPin: () -> Void
@@ -31,6 +35,10 @@ struct OverlayControls: View {
                 if !model.controlsCompact { actionControls }
             }
             if model.controlsCompact { HStack { Spacer(); actionControls } }
+            if model.isAnnotating {
+                AnnotationControls(model: model, onTool: onAnnotationTool, onStyle: onAnnotationStyle,
+                    onDelete: onAnnotationDelete, onClear: onAnnotationClear)
+            }
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .buttonStyle(RailButtonStyle())
@@ -68,8 +76,8 @@ struct OverlayControls: View {
             .accessibilityValue(model.rulerAppearance.rawValue)
             divider
             HStack(spacing: 0) {
-                ForEach(MeasurementTool.allCases, id: \.self) { tool in
-                    Button(tool.rawValue) { onTool(tool) }
+                ForEach(OverlayTool.allCases, id: \.self) { tool in
+                    Button(tool.rawValue) { calibrationPresented = false; gridPresented = false; referencePresented = false; onTool(tool) }
                         .buttonStyle(RailButtonStyle(selected: (model.presentation.tool == tool && !model.aligningReference)))
                         .fixedSize()
                         .accessibilityAddTraits((model.presentation.tool == tool && !model.aligningReference) ? [.isSelected] : [])
@@ -140,9 +148,9 @@ struct OverlayControls: View {
                         .id(model.reference.overlay?.id)
                 }
             Button(action: onUndo) { Image(systemName: "arrow.uturn.backward") }
-                .disabled(!model.canUndo).help(model.aligningReference ? "Undo reference placement (⌘Z)" : "Undo measurement (⌘Z)").accessibilityLabel("Undo")
+                .disabled(!model.canUndo).help(model.aligningReference ? "Undo reference placement (⌘Z)" : (model.isAnnotating ? "Undo annotation (⌘Z)" : "Undo measurement (⌘Z)")).accessibilityLabel("Undo")
             Button(action: onRedo) { Image(systemName: "arrow.uturn.forward") }
-                .disabled(!model.canRedo).help(model.aligningReference ? "Redo reference placement (⇧⌘Z)" : "Redo measurement (⇧⌘Z)").accessibilityLabel("Redo")
+                .disabled(!model.canRedo).help(model.aligningReference ? "Redo reference placement (⇧⌘Z)" : (model.isAnnotating ? "Redo annotation (⇧⌘Z)" : "Redo measurement (⇧⌘Z)")).accessibilityLabel("Redo")
             divider
             Button("Pin & work", systemImage: "pin", action: onPin)
                 .fixedSize().help("Keep measurements visible and interact with other apps. Use the activation shortcut to edit again.")

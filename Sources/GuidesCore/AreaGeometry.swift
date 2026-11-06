@@ -8,7 +8,7 @@ public struct AreaMeasurement: Identifiable, Equatable, Sendable {
 }
 
 public enum AreaDimension: String, CaseIterable, Sendable { case width = "Width", height = "Height", both = "Both" }
-public enum AreaHandle: CaseIterable, Sendable {
+public enum AreaHandle: CaseIterable, Equatable, Sendable {
     case topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left
 
     public func point(on rect: CGRect) -> CGPoint {

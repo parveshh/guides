@@ -17,8 +17,10 @@ public struct DisplaySession: Sendable {
     public var areaDimension: AreaDimension = .both
     public var grid = GridConfiguration()
     public var reference: ReferenceOverlay?
+    public var annotations: AnnotationSession
     public init(size: CGSize, rootPixels: CGFloat) {
         document = MeasurementDocument(size: size)
+        annotations = AnnotationSession(size: size)
         calibration = Calibration(rootPixels: rootPixels)
     }
 }

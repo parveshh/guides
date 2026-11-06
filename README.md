@@ -62,6 +62,16 @@ Select a guide gap or an area’s **Width** or **Height** and explicitly set its
 
 **Copy Variable** copies a reference such as `var(--space-2)` for a unique nearest match within tolerance. Ties, aliases with the same value and outside-tolerance suggestions cannot copy a variable automatically. **Copy** and Command-C still copy the measured value. Suggestions compare your supplied scale with a visual measurement; they do not inspect the app’s CSS or identify its actual design tokens.
 
+## Annotate and spotlight
+
+Choose **Annotate** in the toolbar or menu bar. Select **Arrow**, **Line**, or **Rectangle** and drag on the active display. A finished shape switches to **Select**: drag its body to move it, its endpoints to edit a line/arrow, or the eight handles to resize a rectangle. Use brackets to cycle through shapes, arrows to nudge, Shift for 10 screen points, Option for one backing pixel, and Delete to remove the selected shape.
+
+New rectangles are spotlights by default: their interior stays live and undimmed while the exterior darkens. Only one rectangle is the active spotlight; a new spotlight replaces that assignment without removing older shapes. **Style & spotlight…** offers five colours, 2/4/6-screen-point strokes, a spotlight toggle, and 0–80% exterior dimming (initially 55%). Apply updates the selected shape and style defaults; Cancel discards the draft. With no selected rectangle, the spotlight toggle controls new rectangles. The toolbar moves outside the spotlight when there is room, after the drag ends.
+
+Command-Z and Shift-Command-Z undo/redo annotation changes in Annotate mode. Each drag or applied style/dimming change is one action; history retains up to 100 actions. **Clear** in the annotation row clears only annotations and spotlight. Guide/Area measurements, calibration, grid and reference image remain independent; measurement undo resumes when you choose Guides or Area.
+
+**Pin & work** keeps shapes and dimming visible while input passes through the entire overlay, including the spotlight. Editing captures input inside the clear region too. Escape first cancels an unfinished gesture, otherwise hides the overlay. Hide retains annotations; quitting or invalidating a display discards that display's session. Annotations stay in display coordinates and do not track windows. No capture or additional permission is used.
+
 ## Use a spacing grid
 
 Open the **grid icon** in the editing toolbar, enable **Show grid**, and set square-cell spacing, unit, origin and opacity. **Apply** updates the grid; **Cancel** discards changes. The ruler tools menu also offers **Show Grid / Hide Grid**. The origin marker and bottom badge identify the grid's spacing and position.

@@ -223,9 +223,9 @@ Implementation: reference geometry/history and cancellable loading live in Guide
 
 Research: Context7 supplied Apple's [CGImage-backed NSImage initializer](https://developer.apple.com/documentation/appkit/nsimage/init(cgimage:size:)-8oznv), [flipped image drawing with opacity](https://developer.apple.com/documentation/appkit/nsimage/draw(in:from:operation:fraction:respectflipped:hints:)), and [asynchronous file sheet](https://developer.apple.com/documentation/appkit/nssavepanel/beginsheetmodal(for:completionhandler:)) APIs. Image I/O orientation and bounded preview logic reuse the tested image-inspector path.
 
-Status: 73 core tests and the native Debug build pass. Native checks confirm file import, orientation/transparency, draft validation, precise sizing/opacity, drag/nudge/undo, measurement/calibration independence, failed-replacement recovery, pinned typing, grid layering and reference-only removal. See TESTING.md for remaining hardware/accessibility checks. Independent review is required before committing.
+Status: committed as 9605026 after clean independent review. 73 core tests and the native Debug build pass. Native checks confirm file import, orientation/transparency, draft validation, precise sizing/opacity, drag/nudge/undo, measurement/calibration independence, failed-replacement recovery, pinned typing, grid layering and reference-only removal. See TESTING.md for remaining hardware/accessibility checks. Independent review is required before committing.
 
-### Planned expansion: annotations and rectangle spotlight
+### Selected expansion: annotations and rectangle spotlight
 
 Add an **Annotate** tool for pointing out interface details during reviews and demonstrations. Its first slice supports arrows, straight lines and rectangles. A rectangle can act as a spotlight: the desktop inside stays live and undimmed while the rest of the active display darkens. This is a visual overlay, not content detection or a screen capture.
 
@@ -245,15 +245,19 @@ Scope and defaults:
 - Provide keyboard selection, nudging, deletion and labelled accessibility controls. Expose the selected shape and spotlight state. Keep toolbar/readouts above the dim mask and prefer placing controls outside the highlighted rectangle where space allows.
 - Text labels, ellipses, freehand drawing, multiple simultaneous spotlight openings, saved annotation layouts and screenshot/export are later candidates. The first slice uses no capture or additional privacy grant; existing optional window-resize permission remains unrelated.
 
-Implementation outline: store annotation identities, shape geometry, styles and active spotlight identity separately from the measurement document in GuidesCore. Use one annotation-editing history to make shape and spotlight changes atomic. Render the exterior dim mask, annotation strokes and controls in that order, reusing the existing overlay presentation and input-routing behavior. Normalize reverse-drag rectangles and clip geometry to the active display. Look up current platform drawing/input documentation through Context7 when implementing; this planning update introduces no new API dependency.
+Implementation: AnnotationSession owns shapes, selection, spotlight, cancellable gestures and a 100-action document history in GuidesCore, separate from measurement state. The shared presentation enum is now OverlayTool to include Annotate. A dedicated second toolbar row offers Select/Arrow/Line/Rectangle; completed drawing switches to Select. Style & spotlight uses an Apply/Cancel draft with five colours, 2/4/6-screen-point strokes and 5% dimming steps. Style defaults apply to future shapes; document undo restores existing shape styling and dimming. The existing activation path, display lifecycle and pinned input behavior are reused.
+
+Rendering: draw the reference image, exterior dim mask, grid/rulers/measurements, then annotation strokes and handles; controls/readouts remain above the canvas. The mask uses an even-odd compound path, so it never clears another overlay's pixels. Rectangle dimensions and line/arrow lengths must be at least one screen point at gesture completion; invalid or cancelled gestures restore the prior document and spotlight. Shapes are clipped to the display. The toolbar prefers a position outside the spotlight when available and stays stationary during a drag.
+
+Research: Context7 supplied Apple's [even-odd winding rule](https://developer.apple.com/documentation/appkit/nsbezierpath/windingrule-swift.enum/evenodd), [path fill](https://developer.apple.com/documentation/appkit/nsbezierpath/fill()), [stroke](https://developer.apple.com/documentation/appkit/nsbezierpath/stroke()) and [round line caps](https://developer.apple.com/documentation/appkit/nsbezierpath/linecapstyle-swift.enum). No new privacy API or capture path is added.
 
 Validation before review: geometry and hit-testing for every drag direction; endpoint/handle edits; zero-sized/cancelled rectangles; spotlight replacement and deletion through undo/redo; dim-mask interior/exterior and edge-of-display cases; coexistence with guides/Area; display invalidation; native click-through inside and outside the spotlight; hide/pin/resume, colour/opacity readability and keyboard/accessibility checks. Verify the underlying app stays live inside the clear region. Record unavailable display/assistive-technology checks explicitly.
 
-Status: planned only. Window resizing, spacing tokens, simple grids and reference overlays were selected first; annotations remain a candidate for a future reviewed slice in the order below.
+Status: implemented with 84 passing core tests and a successful native Debug build. Native checks verify shape/endpoint editing, spotlight replacement and undo/redo, style/dimming, click/type-through inside and outside the spotlight, measurement coexistence, clearing and fresh relaunch. Independent review found two UI defects: selected measurement values disappeared in Annotate and pinned mode advertised editing keys. Both are fixed and checked in the rebuilt app. Remaining hardware, assistive-technology and hidden-window observation limits are recorded in TESTING.md. The final exact staged diff requires renewed independent approval before committing.
 
-### Subsequent candidates, in priority order
+### Subsequent candidates
 
-1. **Annotations and spotlight:** arrows, lines and rectangles; a live, undimmed rectangular focus region with adjustable dimming outside it. See the stories above.
+The planned annotation slice is now selected above. Saved layouts and project profiles are the remaining next-feature candidates; choose and specify a slice after this one is complete.
 
 Saved layouts and project profiles remain candidates after those workflows prove useful. Each candidate needs its own acceptance details and reviewed implementation slice; none is implicitly implemented by the image inspector.
 

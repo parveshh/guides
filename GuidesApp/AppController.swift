@@ -31,6 +31,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(item("Edit Guides", #selector(editGuides)))
         menu.addItem(item("Measure Area", #selector(measureArea)))
+        menu.addItem(item("Annotate", #selector(annotate)))
         menu.addItem(item("Inspect Image…", #selector(inspectImage)))
         menu.addItem(item("Resize Window…", #selector(resizeWindow)))
         menu.addItem(item("Spacing Tokens…", #selector(editSpacingTokens)))
@@ -66,6 +67,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
 
     @objc private func editGuides() { overlay.edit(.guides) }
+    @objc private func annotate() { overlay.edit(.annotate) }
     @objc private func measureArea() { overlay.edit(.area) }
     @objc private func inspectImage() {
         overlay.hide()

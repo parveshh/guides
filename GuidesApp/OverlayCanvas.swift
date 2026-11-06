@@ -33,6 +33,7 @@ final class OverlayCanvas: NSView {
 
     @discardableResult
     func cancelGesture() -> Bool {
+        if model.annotations.cancel() { onChange?(); return true }
         if let referenceDrag {
             model.reference.overlay?.setPlacement(referenceDrag.placement, recording: false)
             self.referenceDrag = nil
@@ -86,6 +87,17 @@ final class OverlayCanvas: NSView {
             }
             return
         }
+        if model.isAnnotating {
+            switch action {
+            case .delete: model.annotations.deleteSelection()
+            case .cycle(let backwards, _): model.annotations.cycle(backwards: backwards)
+            case .nudge(let dx, let dy, let precision):
+                let step: CGFloat = precision == .backingPixel ? 1 / model.backingFactor : (precision == .tenPoints ? 10 : 1)
+                model.annotations.nudge(dx: CGFloat(dx) * step, dy: CGFloat(dy) * step)
+            case .add: break
+            }
+            onChange?(); return
+        }
         let before = model.document
         switch action {
         case .add(let axis):
@@ -114,6 +126,9 @@ final class OverlayCanvas: NSView {
                 referenceDrag = (point, placement)
             }
             return
+        }
+        if model.isAnnotating {
+            model.annotations.begin(at: point); onChange?(); return
         }
         if model.presentation.tool == .area {
             dragStart = model.document
@@ -157,6 +172,9 @@ final class OverlayCanvas: NSView {
             onChange?()
             return
         }
+        if model.annotations.isDragging {
+            model.annotations.drag(to: current); onChange?(); return
+        }
         if let areaDrag {
             switch areaDrag {
             case .create(let start, let id):
@@ -176,6 +194,7 @@ final class OverlayCanvas: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if model.annotations.isDragging { model.annotations.end() }
         if let referenceDrag, let placement = model.reference.overlay?.placement {
             model.reference.overlay?.record(before: referenceDrag.placement, after: placement)
             self.referenceDrag = nil
@@ -203,6 +222,7 @@ final class OverlayCanvas: NSView {
         guard model.presentation.mode != .hidden else { return }
         labels.removeAll()
         drawReference()
+        drawSpotlight()
         drawGrid()
         if model.presentation.mode == .editing { drawRulers() }
         drawGridOrigin()
@@ -236,19 +256,24 @@ final class OverlayCanvas: NSView {
             let start = gap.axis == .vertical ? CGPoint(x: gap.first.position, y: anchor.y) : CGPoint(x: anchor.x, y: gap.first.position)
             let end = gap.axis == .vertical ? CGPoint(x: gap.second.position, y: anchor.y) : CGPoint(x: anchor.x, y: gap.second.position)
             line(from: start, to: end, selected: selected)
-            if !selected || model.presentation.mode != .editing {
+            if !selected || !model.showsMeasurementReadout {
                 drawLabel(text, rect: rect, selected: selected)
                 labels.append((rect, gap))
             }
         }
-        let text = model.aligningReference ? "Align reference · Drag / arrows move · ⌘Z undoes placement · Esc returns to measurements"
-            : model.presentation.mode == .pinned
-            ? "Pinned · \(model.contextText) · Activation shortcut to edit"
+        drawAnnotations()
+        let text = model.presentation.mode == .pinned ? "Pinned · \(model.contextText) · Activation shortcut to edit"
+            : model.isAnnotating ? "Annotate · \(model.annotations.tool.rawValue) · Brackets select · Arrows move · Delete removes · Esc cancels or hides"
+            : model.aligningReference ? "Align reference · Drag / arrows move · ⌘Z undoes placement · Esc returns to measurements"
             : (model.presentation.tool == .area
                 ? "Editing captures clicks · Drag an area · Pin & work to use other apps · Esc cancels or hides"
                 : "Editing captures clicks · H/V adds · Shift pairs · Pin & work to use other apps · Esc hides")
         let rect = labelRect(text, centered: CGPoint(x: usableRect.midX, y: usableRect.maxY - 24))
         drawLabel(text, rect: rect, selected: false)
+        if let spotlight = model.annotations.document.spotlight {
+            let status = "Spotlight · \(MeasurementText.number(spotlight.width)) × \(MeasurementText.number(spotlight.height)) screen pt · Outside dimming \(Int((model.annotations.document.dimOpacity * 100).rounded()))%"
+            drawLabel(status, rect: labelRect(status, centered: CGPoint(x: usableRect.midX, y: usableRect.maxY - 114)), selected: false)
+        }
         if let status = referenceStatus {
             drawLabel(status, rect: labelRect(status, centered: CGPoint(x: usableRect.midX, y: usableRect.maxY - 84)), selected: false)
         }
@@ -334,7 +359,7 @@ final class OverlayCanvas: NSView {
         OverlayStyle.guide.withAlphaComponent(selected ? 1 : 0.75).setStroke()
         path.lineWidth = 1 / (window?.backingScaleFactor ?? 1); path.stroke()
         let text = model.areaText(area.rect)
-        if !selected || model.presentation.mode != .editing {
+        if !selected || !model.showsMeasurementReadout {
             drawLabel(text, rect: labelRect(text, centered: CGPoint(x: area.rect.midX, y: area.rect.minY - 18)), selected: selected)
         }
         if selected, model.presentation.mode == .editing, model.presentation.tool == .area {
@@ -437,12 +462,18 @@ final class OverlayCanvas: NSView {
         ("\(value)" as NSString).draw(at: .zero, withAttributes: attributes)
     }
 
+    private var annotationStatus: String {
+        let document = model.annotations.document
+        let selected = document.selected.map { " · Selected \($0.kind.rawValue) at (\(MeasurementText.number($0.bounds.minX)), \(MeasurementText.number($0.bounds.minY))) screen pt" } ?? ""
+        return "\(document.shapes.count) annotations" + selected + (document.spotlight == nil ? " · Spotlight off" : " · Spotlight on, \(Int((document.dimOpacity * 100).rounded()))% dimming")
+    }
+
     func updateAccessibility() {
         let editing = model.presentation.mode == .editing
         setAccessibilityElement(editing)
         setAccessibilityRole(.group)
         setAccessibilityLabel("Measurements")
-        setAccessibilityValue([model.grid.isEnabled ? model.gridStatus : "Grid hidden", referenceStatus ?? "Reference hidden"].joined(separator: " · "))
+        setAccessibilityValue([model.grid.isEnabled ? model.gridStatus : "Grid hidden", referenceStatus ?? "Reference hidden", annotationStatus].joined(separator: " · "))
         setAccessibilityHelp("H and V add guides at the pointer. Bracket keys select; Shift extends a parallel pair. Arrow keys move the selection.")
         guard editing else { setAccessibilityChildren([]); accessibilityItems = [:]; return }
         if model.aligningReference {
@@ -465,6 +496,23 @@ final class OverlayCanvas: NSView {
             updated[key] = item
             children.append(item)
             return item
+        }
+        if model.isAnnotating {
+            setAccessibilityHelp("Annotation mode. Brackets select shapes; arrows nudge; Delete removes. Undo affects only annotations.")
+            for shape in model.annotations.document.shapes {
+                let label = "\(shape.kind.rawValue) annotation · \(shape.style.color.rawValue) · \(shape.style.stroke.rawValue) screen pt stroke" +
+                    (model.annotations.document.spotlightID == shape.id ? " · Active spotlight" : "")
+                _ = element(shape.id.uuidString, label: label, rect: shape.bounds.insetBy(dx: -6, dy: -6),
+                    selected: model.annotations.document.selectedID == shape.id) { [weak self] in
+                        guard let self, self.model.presentation.mode == .editing, self.model.isAnnotating else { return }
+                        self.cancelGesture(); self.model.annotations.select(shape.id)
+                        self.window?.makeFirstResponder(self); self.onChange?()
+                    }
+            }
+            let changed = Set(updated.keys) != Set(accessibilityItems.keys)
+            accessibilityItems = updated; setAccessibilityChildren(children)
+            if changed { NSAccessibility.post(element: self, notification: .layoutChanged) }
+            return
         }
         for guide in model.document.guides {
             let rect = guide.axis == .horizontal

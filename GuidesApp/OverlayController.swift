@@ -20,8 +20,11 @@ final class EditorModel {
     var spacingScale: SpacingScale = .empty
     let reference = ReferenceOverlayModel()
     var aligningReference = false
-    var canUndo: Bool { aligningReference ? reference.overlay?.canUndo == true : history.canUndo }
-    var canRedo: Bool { aligningReference ? reference.overlay?.canRedo == true : history.canRedo }
+    var annotations = AnnotationSession(size: .zero)
+    var isAnnotating: Bool { presentation.tool == .annotate && !aligningReference }
+    var showsMeasurementReadout: Bool { presentation.mode == .editing && !aligningReference && !isAnnotating && canCopy }
+    var canUndo: Bool { aligningReference ? reference.overlay?.canUndo == true : (isAnnotating ? annotations.canUndo : history.canUndo) }
+    var canRedo: Bool { aligningReference ? reference.overlay?.canRedo == true : (isAnnotating ? annotations.canRedo : history.canRedo) }
     var grid = GridConfiguration()
     var gridGeometry: GridGeometry?
     var gridStatus = ""
@@ -106,6 +109,7 @@ final class OverlayController {
     private var controlsWidth: NSLayoutConstraint?
     private var controlsHeight: NSLayoutConstraint?
     private var controlsTop: NSLayoutConstraint?
+    private var controlsCenterX: NSLayoutConstraint?
 
     init(preferences: GuidesPreferences, onInspectImage: @escaping () -> Void, onResizeWindow: @escaping () -> Void,
          onSpacingTokens: @escaping () -> Void) {
@@ -131,7 +135,7 @@ final class OverlayController {
         }
     }
 
-    func edit(_ tool: MeasurementTool) {
+    func edit(_ tool: OverlayTool) {
         cancelReferenceImport()
         canvas?.cancelGesture()
         saveSession()
@@ -150,6 +154,7 @@ final class OverlayController {
         model.unit = session.unit
         model.areaDimension = session.areaDimension
         model.grid = session.grid
+        model.annotations = session.annotations
         model.aligningReference = false
         model.reference.restore(session.reference)
         model.displayID = configuration.id
@@ -204,6 +209,7 @@ final class OverlayController {
             model.calibration = Calibration(rootPixels: preferences.rootPixels)
             model.unit = .screenPoints
             model.grid = GridConfiguration()
+            model.annotations = AnnotationSession(size: .zero)
             model.reference.restore(nil)
             model.displayID = nil
         } else if let activeID, let screen = NSScreen.screens.first(where: { $0.guidesConfiguration?.id == activeID }) {
@@ -221,6 +227,7 @@ final class OverlayController {
         session.areaDimension = model.areaDimension
         session.grid = model.grid
         session.reference = model.reference.overlay
+        session.annotations = model.annotations
         sessions.save(session)
     }
 
@@ -229,9 +236,9 @@ final class OverlayController {
         let usable = DisplayGeometry(frame: screen.frame).localRect(fromGlobal: screen.visibleFrame)
         canvas?.usableRect = usable
         model.backingFactor = screen.guidesConfiguration?.backingFactor ?? 1
-        model.controlsCompact = usable.width < 900
-        controlsWidth?.constant = max(240, min(900, usable.width - 32))
-        controlsHeight?.constant = model.controlsCompact ? 106 : 66
+        model.controlsCompact = usable.width < 1000
+        controlsWidth?.constant = max(240, min(1000, usable.width - 32))
+        controlsHeight?.constant = (model.controlsCompact ? 106 : 66) + (model.isAnnotating ? 42 : 0)
         controlsTop?.constant = usable.minY + 32
         panel?.contentView?.layoutSubtreeIfNeeded()
         if let controls, let canvas { canvas.controlsRect = canvas.convert(controls.bounds, from: controls) }
@@ -301,16 +308,23 @@ final class OverlayController {
                 self?.model.aligningReference = false
                 self?.model.reference.restore(nil)
             },
+            onAnnotationTool: { [weak self] tool in self?.editAnnotations { $0.setTool(tool) } },
+            onAnnotationStyle: { [weak self] style, spotlight, opacity in
+                self?.editAnnotations { $0.apply(style: style, spotlight: spotlight, dimOpacity: opacity) }
+            },
+            onAnnotationDelete: { [weak self] in self?.editAnnotations { $0.deleteSelection() } },
+            onAnnotationClear: { [weak self] in self?.editAnnotations { $0.clear() } },
             onUndo: { [weak self] in self?.undo() }, onRedo: { [weak self] in self?.redo() },
             onPin: { [weak self] in self?.pin() }, onHide: { [weak self] in self?.hide() }))
         controls.translatesAutoresizingMaskIntoConstraints = false
         controls.sizingOptions = []
         root.addSubview(controls)
-        controlsWidth = controls.widthAnchor.constraint(equalToConstant: 900)
+        controlsWidth = controls.widthAnchor.constraint(equalToConstant: 1000)
         controlsHeight = controls.heightAnchor.constraint(equalToConstant: 66)
         controlsTop = controls.topAnchor.constraint(equalTo: root.topAnchor, constant: 40)
+        controlsCenterX = controls.centerXAnchor.constraint(equalTo: root.centerXAnchor)
         NSLayoutConstraint.activate([
-            controls.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+            controlsCenterX!,
             controlsTop!, controlsWidth!, controlsHeight!
         ])
         let readout = NSHostingView(rootView: MeasurementReadout(model: model,
@@ -338,6 +352,7 @@ final class OverlayController {
     private func undo() {
         canvas?.cancelGesture()
         if model.aligningReference { model.reference.overlay?.undo() }
+        else if model.isAnnotating { model.annotations.undo() }
         else if let document = model.history.undo(current: model.document) { model.document = document }
         refresh()
     }
@@ -345,12 +360,13 @@ final class OverlayController {
     private func redo() {
         canvas?.cancelGesture()
         if model.aligningReference { model.reference.overlay?.redo() }
+        else if model.isAnnotating { model.annotations.redo() }
         else if let document = model.history.redo(current: model.document) { model.document = document }
         refresh()
     }
 
     private func copySelection() {
-        guard let text = model.copyText else { return }
+        guard !model.isAnnotating, !model.aligningReference, let text = model.copyText else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
     }
@@ -359,6 +375,13 @@ final class OverlayController {
         guard let text = model.spacingMatch?.copyReference else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private func editAnnotations(_ change: (inout AnnotationSession) -> Void) {
+        canvas?.cancelGesture()
+        change(&model.annotations)
+        panel?.makeFirstResponder(canvas)
+        refresh()
     }
 
     private func cancelReferenceImport() {
@@ -404,6 +427,17 @@ final class OverlayController {
             } catch { model.gridStatus = "Grid paused · " + error.localizedDescription }
         }
         controls?.isHidden = model.presentation.mode != .editing
+        controlsHeight?.constant = (model.controlsCompact ? 106 : 66) + (model.isAnnotating ? 42 : 0)
+        if let canvas, let root = panel?.contentView, !model.annotations.isDragging {
+            let height = controlsHeight?.constant ?? 66, width = controlsWidth?.constant ?? 1000
+            let preferred = CGRect(x: canvas.usableRect.midX - width / 2, y: canvas.usableRect.minY + 32, width: width, height: height)
+            let frame = AnnotationGeometry.toolbarFrame(preferred: preferred, usable: canvas.usableRect,
+                spotlight: model.annotations.document.spotlight)
+            controlsTop?.constant = frame.minY
+            controlsCenterX?.constant = frame.midX - root.bounds.midX
+        }
+        panel?.contentView?.layoutSubtreeIfNeeded()
+        if let controls, let canvas { canvas.controlsRect = canvas.convert(controls.bounds, from: controls) }
         canvas?.refreshReferenceImage()
         positionReadout()
         canvas?.updateAccessibility()
@@ -412,7 +446,7 @@ final class OverlayController {
 
     private func positionReadout() {
         guard let canvas, let readout, let root = panel?.contentView else { return }
-        guard model.presentation.mode == .editing, !model.aligningReference, model.canCopy else {
+        guard model.showsMeasurementReadout else {
             readout.isHidden = true
             canvas.readoutRect = .zero
             return
