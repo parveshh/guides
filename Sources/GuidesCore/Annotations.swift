@@ -118,6 +118,18 @@ public struct AnnotationSession: Sendable {
     public var canRedo: Bool { !future.isEmpty }
     public init(size: CGSize) { document = AnnotationDocument(size: size) }
 
+    // Used only after SavedLayoutContent has validated every persisted value.
+    init(size: CGSize, shapes: [Annotation], spotlightID: UUID?, dimOpacity: CGFloat,
+         style: AnnotationStyle, newRectanglesSpotlight: Bool) {
+        document = AnnotationDocument(size: size)
+        document.shapes = shapes
+        document.spotlightID = spotlightID
+        document.dimOpacity = dimOpacity
+        self.style = style
+        self.newRectanglesSpotlight = newRectanglesSpotlight
+        tool = .select
+    }
+
     public mutating func setTool(_ value: AnnotationTool) {
         cancel(); tool = value
         if value.kind != nil { document.selectedID = nil }

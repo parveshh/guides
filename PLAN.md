@@ -267,11 +267,31 @@ The user requested Transparent as an additional colour choice. Add it to the too
 
 Implementation and validation: an additional AnnotationColor case and a rendering guard; no new persistence, permissions or APIs for capture. Context7 verified SwiftUI [circular clipping](https://developer.apple.com/documentation/swiftui/view/clipshape(_:style:)) for the checkerboard swatch. All 86 core tests and the native Debug build pass. Extended colour tests exercise transparent rectangles/lines/arrows, spotlight preservation, hit selection, nudging, history and restoring a visible colour. Native checks confirm the swatch and style value, borderless spotlight with editing handles, undo/redo, hidden pinned strokes/handles and recolouring a retained transparent line. Full VoiceOver and compact-display checks remain manual. Independent review of the exact staged change is required before committing.
 
+### Selected expansion: saved layouts
+
+The user selected saved layouts next. Save named setups locally and restore them only through an explicit Load action; relaunch still starts with fresh measurements and unconfirmed calibration.
+
+| ID | Story | Acceptance |
+| --- | --- | --- |
+| L01 | Save the current setup. | Saved Layouts is available from the menu bar and toolbar tools menu. Save guides, measured Area, grid configuration, annotation geometry/styles/defaults and spotlight/dimming for the active display. Trim names, require 1–80 characters and unique names ignoring case. Save creates a new snapshot; edits to the canvas do not update it automatically. |
+| L02 | Restore precise geometry. | Show the layout's screen-point size, backing factor and content counts. Load only on a display with the same size and backing factor; never scale or clamp saved geometry silently. Replace the current display's guides/Area/grid/annotations atomically and start fresh tool histories. Reset measurement units to Screen pt and calibration to unconfirmed; Design px/rem grids pause until Set scale is explicitly used again. Reference images and global preferences are outside the snapshot. |
+| L03 | Recover after loading. | Undo Layout Load restores the previous display setup, calibration and tool histories, without changing its current reference image or global rem-base preference. Keep one recovery snapshot for the latest load in this run. Only its matching display can restore it; display invalidation clears it. Expose this separately from each tool's ordinary undo. |
+| L04 | Manage saved work. | Select, rename and delete layouts. Delete has one-level Undo Delete during this run; rename keeps identity/content. Invalid names or failed writes leave the library unchanged. |
+| L05 | Persist safely and locally. | Store one versioned JSON library in Application Support using atomic writes. Validate complete archives before accepting them; unreadable, corrupt or newer-version files are retained and block mutations with a visible error and Retry. Limit to 100 layouts, 1000 guides and 1000 annotations per layout, and an 8 MiB archive. No auto-load, reference-file persistence, capture, cloud sync, import/export or project profiles in this slice. |
+
+Validation: round-trip all supported content including Transparent, spotlight/defaults and grids; explicit calibration reset; exact display compatibility; invalid/corrupt/future-version and write-failure preservation; naming and delete recovery; fresh relaunch; atomic load/recovery and unaffected reference/global settings. Native checks cover save/list/load/rename/delete/undo, geometry restoration and calibration gating. Independent review of the final exact staged diff is the commit gate.
+
+Implementation: immutable Codable snapshot records validate before rebuilding domain state with fresh object IDs. LayoutLoadRecovery owns the single previous session independently of measurement and annotation history. SavedLayoutsStore validates complete archives before publishing them and changes its observable library only after an atomic disk write succeeds. The manager binds to the active display configuration at opening and rechecks it for each capture/load/recovery. Stored display bounds are finite, positive and capped at 100000 screen points per axis and a 16× backing factor; out-of-bounds guides, areas, annotations, origins and unknown enum values are rejected. Signed CGRect extents are checked directly before restoration to prevent silent normalization/clamping.
+
+Research: Context7 verified Apple's [Application Support directory](https://developer.apple.com/documentation/foundation/url) and [atomic data writing option](https://developer.apple.com/documentation/foundation/nsdata/writingoptions). No privacy API or capture path is added.
+
+Implementation is complete. Validation: 96 core tests pass and the native Debug build succeeds. Native save/list/rename/delete/Undo Delete, disk persistence across relaunch, empty fresh canvas, explicit restoration of exact guide/Area geometry and a transparent spotlight, Design px grid calibration gating, post-load editing/ordinary undo and Undo Layout Load are verified. Recovery restores the prior 125% scale and tool history, and can also recover an empty pre-load setup. The test layout was removed after checks. Real display switching/reconnection and full VoiceOver remain manual limits. Independent review found that load recovery retained an obsolete reference preview; recovery now stores a reference-free session, and a weak-reference regression test verifies release after replacement/removal. Commit gate: clean independent re-review of the exact staged diff.
+
 ### Subsequent candidates
 
-The planned annotation slice is now selected above. Saved layouts and project profiles are the remaining next-feature candidates; choose and specify a slice after this one is complete.
+Saved layouts is selected above. Project profiles remains the next candidate; choose and specify it after this slice is complete.
 
-Saved layouts and project profiles remain candidates after those workflows prove useful. Each candidate needs its own acceptance details and reviewed implementation slice; none is implicitly implemented by the image inspector.
+Each later candidate needs its own acceptance details and reviewed implementation slice; none is implicitly implemented by earlier tools.
 
 | Stage | Features | Trigger |
 | --- | --- | --- |

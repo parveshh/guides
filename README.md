@@ -50,7 +50,17 @@ Click the canvas or an accessibility measurement element to focus measurement ke
 
 For example, 64 screen points at 200% scale is `32px`, or `2rem` with a 16px root. The app measures visible boundaries; it cannot infer exact padding, layout tokens, or source properties.
 
-Only one display is active at a time. Each display retains its own in-memory measurements, history, and calibration. Disconnecting a display or changing its logical size/backing scale clears that display's session and hides its overlay. Rearranging displays preserves their local measurements. Sleep hides the overlay; wake rechecks display configuration. Quitting starts all measurements and calibration fresh; the shortcut, root font size, ruler appearance, and spacing-scale preferences remain.
+Only one display is active at a time. Each display retains its own in-memory measurements, history, and calibration. Disconnecting a display or changing its logical size/backing scale clears that display's session and hides its overlay. Rearranging displays preserves their local measurements. Sleep hides the overlay; wake rechecks display configuration. Quitting starts all measurements and calibration fresh; the shortcut, root font size, ruler appearance, spacing-scale preferences and explicitly saved layouts remain. Layouts never load automatically.
+
+## Save layouts
+
+Choose **Saved Layouts…** from the menu bar or toolbar’s ruler menu. Name the current setup and choose **Save Current**. This saves the active display’s guides, measured Area, grid, annotations, colours (including Transparent), style defaults and spotlight/dimming. Names are trimmed, 1–80 characters and unique ignoring case. Saving creates a snapshot; later canvas edits do not update it automatically.
+
+Select a saved entry to **Load Layout**, **Rename** or **Delete** it. The list shows its screen-point size, backing factor and content counts. Loading requires exactly the same screen-point dimensions and backing factor; another display with those properties can load it. Geometry is never scaled to fit. Loading replaces guides/Area/grid/annotations, clears tool histories and selection, and resets units to Screen pt and calibration to unconfirmed. Design px/rem grids pause until you use **Set scale** again. Reference images and global preferences are unaffected.
+
+**Undo Layout Load** restores the setup, calibration and tool histories from before the latest load in this run, discarding subsequent canvas edits. It preserves the current reference image and global rem base. Recovery applies only to its original display and is cleared if that display’s size/backing factor changes or it disconnects. Ordinary Command-Z handles edits made after loading. **Undo Delete** recovers the most recently deleted layout during this run, provided its name and library capacity are still available.
+
+The library is stored locally at `~/Library/Application Support/Guides/layouts.json`, with atomic writes. Limits are 100 layouts, 1000 guides and 1000 annotations per layout, and 8 MiB total. An unreadable, invalid or newer-version library is retained and blocks changes; correct the file externally, then use **Retry**. Relaunch always starts with an empty overlay and fresh calibration. Saved layouts do not include reference files, calibration, preferences or project profiles; there is no sync or import/export UI.
 
 ## Compare spacing tokens
 

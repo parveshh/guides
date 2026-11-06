@@ -7,6 +7,7 @@ struct OverlayControls: View {
     var onInspectImage: () -> Void
     var onResizeWindow: () -> Void
     var onSpacingTokens: () -> Void
+    var onSavedLayouts: () -> Void
     var onTool: (OverlayTool) -> Void
     var onUnit: (MeasurementUnit) -> Void
     var onCalibration: (Calibration) -> Void
@@ -58,6 +59,7 @@ struct OverlayControls: View {
                 Button("Inspect Image…", systemImage: "photo", action: onInspectImage)
                 Button("Resize Window…", systemImage: "macwindow", action: onResizeWindow)
                 Button("Spacing Tokens…", systemImage: "list.bullet", action: onSpacingTokens)
+                Button("Saved Layouts…", systemImage: "square.stack", action: onSavedLayouts)
                 Divider()
                 Button(model.grid.isEnabled ? "Hide Grid" : "Show Grid", systemImage: "grid") {
                     var grid = model.grid

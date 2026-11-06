@@ -99,6 +99,8 @@ final class OverlayController {
     private let onInspectImage: () -> Void
     private let onResizeWindow: () -> Void
     private let onSpacingTokens: () -> Void
+    private let onSavedLayouts: () -> Void
+    private var layoutRecovery = LayoutLoadRecovery()
     private var panel: OverlayPanel?
     private var canvas: OverlayCanvas?
     private var controls: NSHostingView<OverlayControls>?
@@ -112,11 +114,12 @@ final class OverlayController {
     private var controlsCenterX: NSLayoutConstraint?
 
     init(preferences: GuidesPreferences, onInspectImage: @escaping () -> Void, onResizeWindow: @escaping () -> Void,
-         onSpacingTokens: @escaping () -> Void) {
+         onSpacingTokens: @escaping () -> Void, onSavedLayouts: @escaping () -> Void) {
         self.preferences = preferences
         self.onInspectImage = onInspectImage
         self.onResizeWindow = onResizeWindow
         self.onSpacingTokens = onSpacingTokens
+        self.onSavedLayouts = onSavedLayouts
         model.reference.onChange = { [weak self] in self?.saveSession(); self?.refresh() }
         model.calibration.setRootPixels(preferences.rootPixels)
         model.rulerAppearance = preferences.rulerAppearance
@@ -139,7 +142,7 @@ final class OverlayController {
         cancelReferenceImport()
         canvas?.cancelGesture()
         saveSession()
-        sessions.synchronize(NSScreen.screens.compactMap(\.guidesConfiguration))
+        layoutRecovery.invalidate(sessions.synchronize(NSScreen.screens.compactMap(\.guidesConfiguration)))
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
                 ?? NSScreen.main, let configuration = screen.guidesConfiguration,
               let session = sessions.activate(configuration.id, rootPixels: preferences.rootPixels) else { return }
@@ -202,6 +205,7 @@ final class OverlayController {
         saveSession()
         let activeID = sessions.activeID
         let invalidated = sessions.synchronize(NSScreen.screens.compactMap(\.guidesConfiguration))
+        layoutRecovery.invalidate(invalidated)
         if let activeID, invalidated.contains(activeID) {
             hide()
             model.document = MeasurementDocument(size: .zero)
@@ -218,7 +222,7 @@ final class OverlayController {
         refresh()
     }
 
-    private func saveSession() {
+    private func currentSession() -> DisplaySession {
         var session = DisplaySession(size: model.document.size, rootPixels: preferences.rootPixels)
         session.document = model.document
         session.history = model.history
@@ -228,7 +232,69 @@ final class OverlayController {
         session.grid = model.grid
         session.reference = model.reference.overlay
         session.annotations = model.annotations
-        sessions.save(session)
+        return session
+    }
+
+    private func saveSession() { sessions.save(currentSession()) }
+
+    func prepareSavedLayouts() -> DisplayConfiguration? {
+        if model.displayID == nil || model.presentation.mode == .hidden { edit(model.presentation.tool) }
+        cancelReferenceImport()
+        canvas?.cancelGesture()
+        guard let target = NSScreen.screens.compactMap(\.guidesConfiguration).first(where: { $0.id == model.displayID }) else { return nil }
+        hide()
+        return target
+    }
+
+    private func layoutScreen(_ target: DisplayConfiguration) throws -> NSScreen {
+        guard model.displayID == target.id, model.document.size == target.size,
+              let screen = NSScreen.screens.first(where: { $0.guidesConfiguration == target }) else { throw LayoutError.unavailable }
+        return screen
+    }
+
+    func captureLayout(on target: DisplayConfiguration) throws -> SavedLayoutContent {
+        _ = try layoutScreen(target)
+        canvas?.cancelGesture()
+        return try SavedLayoutContent(session: currentSession(), backingFactor: target.backingFactor)
+    }
+
+    func canUndoLayoutLoad(on target: DisplayConfiguration) -> Bool {
+        (try? layoutScreen(target)) != nil && layoutRecovery.canUndo(on: target)
+    }
+
+    func loadLayout(_ content: SavedLayoutContent, on target: DisplayConfiguration) throws {
+        let screen = try layoutScreen(target)
+        canvas?.cancelGesture()
+        var session = currentSession()
+        try layoutRecovery.load(content, into: &session, on: target)
+        applyLayoutSession(session, screen: screen)
+    }
+
+    func undoLayoutLoad(on target: DisplayConfiguration) throws {
+        let screen = try layoutScreen(target)
+        canvas?.cancelGesture()
+        var session = currentSession()
+        try layoutRecovery.undo(into: &session, on: target)
+        applyLayoutSession(session, screen: screen)
+    }
+
+    private func applyLayoutSession(_ session: DisplaySession, screen: NSScreen) {
+        cancelReferenceImport()
+        model.document = session.document
+        model.history = session.history
+        model.calibration = session.calibration
+        model.unit = session.unit
+        model.areaDimension = session.areaDimension
+        model.grid = session.grid
+        model.annotations = session.annotations
+        model.aligningReference = false
+        model.presentation.edit(model.presentation.tool)
+        configureLayout(screen)
+        panel?.editing = true
+        panel?.ignoresMouseEvents = false
+        refresh()
+        panel?.makeKeyAndOrderFront(nil)
+        panel?.makeFirstResponder(canvas)
     }
 
     private func configureLayout(_ screen: NSScreen) {
@@ -278,7 +344,7 @@ final class OverlayController {
         root.addSubview(canvas)
         let controls = NSHostingView(rootView: OverlayControls(model: model,
             onRulerAppearance: { [weak self] in self?.preferences.setRulerAppearance($0) },
-            onInspectImage: onInspectImage, onResizeWindow: onResizeWindow, onSpacingTokens: onSpacingTokens,
+            onInspectImage: onInspectImage, onResizeWindow: onResizeWindow, onSpacingTokens: onSpacingTokens, onSavedLayouts: onSavedLayouts,
             onTool: { [weak self] tool in self?.canvas?.cancelGesture(); self?.model.aligningReference = false; self?.model.presentation.edit(tool); self?.refresh() },
             onUnit: { [weak self] unit in self?.model.unit = unit; self?.refresh() },
             onCalibration: { [weak self] calibration in
