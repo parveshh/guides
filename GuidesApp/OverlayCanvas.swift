@@ -12,6 +12,9 @@ final class OverlayCanvas: NSView {
     var onCopy: (() -> Void)?
     var onUndo: (() -> Void)?
     var onRedo: (() -> Void)?
+    private var referenceDrag: (start: CGPoint, placement: ReferencePlacement)?
+    private var referenceImageID: UUID?
+    private var referenceImage: NSImage?
     private var dragStart: MeasurementDocument?
     private var draggingID: UUID?
     private enum AreaDrag {
@@ -30,6 +33,12 @@ final class OverlayCanvas: NSView {
 
     @discardableResult
     func cancelGesture() -> Bool {
+        if let referenceDrag {
+            model.reference.overlay?.setPlacement(referenceDrag.placement, recording: false)
+            self.referenceDrag = nil
+            onChange?()
+            return true
+        }
         guard let dragStart else { return false }
         model.document = dragStart
         self.dragStart = nil
@@ -39,7 +48,11 @@ final class OverlayCanvas: NSView {
         return true
     }
 
-    func cancelOrHide() { if !cancelGesture() { onEscape?() } }
+    func cancelOrHide() {
+        if cancelGesture() { return }
+        if model.aligningReference { model.aligningReference = false; onChange?() }
+        else { onEscape?() }
+    }
 
     func handleCommand(_ event: NSEvent) -> Bool {
         guard event.modifierFlags.contains(.command),
@@ -64,6 +77,15 @@ final class OverlayCanvas: NSView {
             super.keyDown(with: event); return
         }
         cancelGesture()
+        if model.aligningReference {
+            if case .nudge(let dx, let dy, let precision) = action, let placement = model.reference.overlay?.placement {
+                let step: CGFloat = precision == .backingPixel ? 1 / model.backingFactor : (precision == .tenPoints ? 10 : 1)
+                model.reference.overlay?.setPlacement(placement.moved(dx: CGFloat(dx) * step, dy: CGFloat(dy) * step,
+                    displaySize: bounds.size))
+                onChange?()
+            }
+            return
+        }
         let before = model.document
         switch action {
         case .add(let axis):
@@ -87,6 +109,12 @@ final class OverlayCanvas: NSView {
         guard model.presentation.mode == .editing else { return }
         window?.makeFirstResponder(self)
         let point = convert(event.locationInWindow, from: nil)
+        if model.aligningReference {
+            if let placement = model.reference.overlay?.placement, placement.isVisible, placement.frame.contains(point) {
+                referenceDrag = (point, placement)
+            }
+            return
+        }
         if model.presentation.tool == .area {
             dragStart = model.document
             if let area = model.document.area,
@@ -123,6 +151,12 @@ final class OverlayCanvas: NSView {
 
     override func mouseDragged(with event: NSEvent) {
         let current = DisplayGeometry.clamp(convert(event.locationInWindow, from: nil), to: bounds.size)
+        if let referenceDrag {
+            model.reference.overlay?.setPlacement(referenceDrag.placement.moved(dx: current.x - referenceDrag.start.x,
+                dy: current.y - referenceDrag.start.y, displaySize: bounds.size), recording: false)
+            onChange?()
+            return
+        }
         if let areaDrag {
             switch areaDrag {
             case .create(let start, let id):
@@ -142,6 +176,10 @@ final class OverlayCanvas: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if let referenceDrag, let placement = model.reference.overlay?.placement {
+            model.reference.overlay?.record(before: referenceDrag.placement, after: placement)
+            self.referenceDrag = nil
+        }
         if let dragStart {
             if areaDrag != nil, let rect = model.document.area?.rect, rect.width == 0 || rect.height == 0 {
                 model.document = dragStart
@@ -164,6 +202,7 @@ final class OverlayCanvas: NSView {
     override func draw(_ dirtyRect: NSRect) {
         guard model.presentation.mode != .hidden else { return }
         labels.removeAll()
+        drawReference()
         drawGrid()
         if model.presentation.mode == .editing { drawRulers() }
         drawGridOrigin()
@@ -202,16 +241,60 @@ final class OverlayCanvas: NSView {
                 labels.append((rect, gap))
             }
         }
-        let text = model.presentation.mode == .pinned
+        let text = model.aligningReference ? "Align reference · Drag / arrows move · ⌘Z undoes placement · Esc returns to measurements"
+            : model.presentation.mode == .pinned
             ? "Pinned · \(model.contextText) · Activation shortcut to edit"
             : (model.presentation.tool == .area
                 ? "Editing captures clicks · Drag an area · Pin & work to use other apps · Esc cancels or hides"
                 : "Editing captures clicks · H/V adds · Shift pairs · Pin & work to use other apps · Esc hides")
         let rect = labelRect(text, centered: CGPoint(x: usableRect.midX, y: usableRect.maxY - 24))
         drawLabel(text, rect: rect, selected: false)
+        if let status = referenceStatus {
+            drawLabel(status, rect: labelRect(status, centered: CGPoint(x: usableRect.midX, y: usableRect.maxY - 84)), selected: false)
+        }
         if model.grid.isEnabled {
             drawLabel(model.gridStatus,
                 rect: labelRect(model.gridStatus, centered: CGPoint(x: usableRect.midX, y: usableRect.maxY - 54)), selected: false)
+        }
+    }
+
+    private var referenceStatus: String? {
+        if model.reference.isLoading { return "Loading reference image…" }
+        if let error = model.reference.error { return "Reference · " + error }
+        guard let reference = model.reference.overlay, reference.placement.isVisible else { return nil }
+        let frame = reference.placement.frame
+        let detail = model.aligningReference ? "Align: drag / arrows · Esc finishes" : "Manual reference"
+        return "\(detail) · \(reference.image.metadata.name) · \(MeasurementText.number(frame.width)) × \(MeasurementText.number(frame.height)) screen pt · (\(MeasurementText.number(frame.minX)), \(MeasurementText.number(frame.minY))) pt · \(Int((reference.placement.opacity * 100).rounded()))% opacity"
+    }
+
+    func refreshReferenceImage() {
+        // A decode may complete during a drag of the previous image. Never apply that
+        // gesture or its history to an image with a different source aspect ratio.
+        if referenceImageID != model.reference.overlay?.id {
+            referenceDrag = nil
+            model.aligningReference = false
+        }
+        guard let reference = model.reference.overlay else {
+            referenceImageID = nil; referenceImage = nil
+            return
+        }
+        if referenceImageID != reference.id {
+            referenceImageID = reference.id
+            referenceImage = NSImage(cgImage: reference.image.preview, size: reference.sourceSize)
+        }
+    }
+
+    private func drawReference() {
+        guard let reference = model.reference.overlay, reference.placement.isVisible else { return }
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSBezierPath(rect: bounds).addClip()
+        referenceImage?.draw(in: reference.placement.frame, from: .zero, operation: .sourceOver,
+            fraction: reference.placement.opacity, respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
+        if model.aligningReference && model.presentation.mode == .editing {
+            let border = NSBezierPath(rect: reference.placement.frame)
+            NSColor.black.setStroke(); border.lineWidth = 3; border.stroke()
+            NSColor.systemYellow.setStroke(); border.lineWidth = 1; border.stroke()
         }
     }
 
@@ -359,9 +442,14 @@ final class OverlayCanvas: NSView {
         setAccessibilityElement(editing)
         setAccessibilityRole(.group)
         setAccessibilityLabel("Measurements")
-        setAccessibilityValue(model.grid.isEnabled ? model.gridStatus : "Grid hidden")
+        setAccessibilityValue([model.grid.isEnabled ? model.gridStatus : "Grid hidden", referenceStatus ?? "Reference hidden"].joined(separator: " · "))
         setAccessibilityHelp("H and V add guides at the pointer. Bracket keys select; Shift extends a parallel pair. Arrow keys move the selection.")
         guard editing else { setAccessibilityChildren([]); accessibilityItems = [:]; return }
+        if model.aligningReference {
+            setAccessibilityChildren([]); accessibilityItems = [:]
+            setAccessibilityHelp("Align reference with arrow keys. Shift moves ten screen points; Option moves one backing pixel. Escape returns to measurements.")
+            return
+        }
         var updated: [String: MeasurementAccessibilityElement] = [:]
         var children: [MeasurementAccessibilityElement] = []
         func element(_ key: String, label: String, rect: CGRect, selected: Bool, action: @escaping @MainActor @Sendable () -> Void) -> MeasurementAccessibilityElement {

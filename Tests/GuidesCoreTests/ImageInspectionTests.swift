@@ -151,3 +151,11 @@ private actor SuspendedImageLoader: ImageInspecting {
     await closing.value
     #expect(model.image == nil && model.error == nil && !model.isLoading)
 }
+
+@Test func referencePreviewCanBeLargerButRemainsBounded() throws {
+    let data = try imageFixture(width: 4500, height: 40)
+    let reference = try ImageInspection.inspect(data: data, name: "wide.png", maximumPreviewPixels: 10000)
+    #expect(reference.metadata.width == 4500 && reference.preview.width == 4096)
+    let inspector = try ImageInspection.inspect(data: data, name: "wide.png")
+    #expect(inspector.preview.width == 800)
+}

@@ -16,6 +16,7 @@ public struct DisplaySession: Sendable {
     public var unit: MeasurementUnit = .screenPoints
     public var areaDimension: AreaDimension = .both
     public var grid = GridConfiguration()
+    public var reference: ReferenceOverlay?
     public init(size: CGSize, rootPixels: CGFloat) {
         document = MeasurementDocument(size: size)
         calibration = Calibration(rootPixels: rootPixels)

@@ -205,7 +205,25 @@ Implementation: validated GridConfiguration and bounded GridGeometry in GuidesCo
 
 Research: Context7 resolved AppKit and supplied Apple's [NSBezierPath stroke](https://developer.apple.com/documentation/appkit/nsbezierpath) and [clipping](https://developer.apple.com/documentation/appkit/nsbezierpath/clip(_:)) APIs. A native check found that presenting grid settings from inside the tools menu did not show the popover. The final direct toolbar button follows the [SwiftUI popover example](https://developer.apple.com/documentation/swiftui/view/popover(ispresented:attachmentanchor:arrowedge:content:)); the toolbar is 40 points wider with its existing compact layout threshold adjusted. Existing panel click-through and graphics-state handling are reused.
 
-Status: implemented; 66 core tests and the native Debug build pass. Native checks cover settings presentation, text selection/entry, zero-spacing rejection, offset origin, grid/Area coexistence without snapping, calibration gating, density pause/recovery and pinned click/type-through. Full VoiceOver, hardware display switching, very narrow native layouts and exhaustive appearance combinations remain manual limits in TESTING.md. The mandatory independent-review gate applies before committing.
+Status: committed as 73c7696 after clean independent review; 66 core tests and the native Debug build pass. Native checks cover settings presentation, text selection/entry, zero-spacing rejection, offset origin, grid/Area coexistence without snapping, calibration gating, density pause/recovery and pinned click/type-through. Full VoiceOver, hardware display switching, very narrow native layouts and exhaustive appearance combinations remain manual limits in TESTING.md.
+
+### Selected expansion: reference image overlay
+
+The next roadmap slice uses one local raster image as a manually aligned reference per display. Its screen-point placement and source pixels are independent of measurement calibration and do not inspect CSS or track application windows.
+
+| ID | Story | Acceptance |
+| --- | --- | --- |
+| R01 | Import a local reference. | The toolbar Reference image button opens controls and a one-file image picker. Fit a successful image within 80% of the display without upscaling, at 50% opacity. Use orientation-correct primary-image pixels and retain the previous reference after invalid/cancelled replacement. Decode off the UI thread with the existing 100 MiB encoded limit and a preview bounded to 4096 pixels per edge; no capture, network, clipboard or drag-import expansion. |
+| R02 | Size and position explicitly. | Apply X/Y and width in display-local screen points, preserving source aspect ratio. Width and height must each remain 1–32768 screen pt, with at least 1 pt intersecting the display on each axis. Opacity is 10–100%. Show source dimensions separately; ignore image DPI and measurement scale. Fit to display resets the draft. Invalid drafts and Cancel retain current placement. |
+| R03 | Align without editing measurements. | Apply & align on canvas enables reference-only drag and arrow nudging (1 screen pt, Shift 10 pt, Option 1 backing px). Undo/redo affects reference placement in this mode; a drag is one action. Escape cancels a drag, then exits alignment; Guides/Area resume measurement editing. Placement history is capped at 100 and reset on image replacement/removal; import/removal itself is not undoable. |
+| R04 | Compare while working. | Reference pixels draw behind grid, rulers and measurements. Show reference controls visibility; Remove Reference releases its session image. Pin & work retains visible content and passes all input through; Hide hides everything. Clear Measurements does not remove the reference. No automatic snapping, pixel-diff claims, rotation or independent aspect stretching. |
+| R05 | Keep lifecycle local and predictable. | Each display retains its image/placement/history only for this run. Display invalidation clears the affected reference; quitting saves no image path or placement. Hide, pin, switching displays or removal cancel pending work, and late results cannot repopulate a cleared or different display. |
+
+Implementation: reference geometry/history and cancellable loading live in GuidesCore. The overlay shares the existing Image I/O loader with a larger bounded preview, an AppKit file sheet and drawing, and SwiftUI draft controls. Placement changes do not affect guide/Area state or calibration. Replacing the image ends any in-flight alignment gesture and resets the editor draft to the new image. Only one decoded preview per populated display is retained; placement history never retains previous imported images.
+
+Research: Context7 supplied Apple's [CGImage-backed NSImage initializer](https://developer.apple.com/documentation/appkit/nsimage/init(cgimage:size:)-8oznv), [flipped image drawing with opacity](https://developer.apple.com/documentation/appkit/nsimage/draw(in:from:operation:fraction:respectflipped:hints:)), and [asynchronous file sheet](https://developer.apple.com/documentation/appkit/nssavepanel/beginsheetmodal(for:completionhandler:)) APIs. Image I/O orientation and bounded preview logic reuse the tested image-inspector path.
+
+Status: 73 core tests and the native Debug build pass. Native checks confirm file import, orientation/transparency, draft validation, precise sizing/opacity, drag/nudge/undo, measurement/calibration independence, failed-replacement recovery, pinned typing, grid layering and reference-only removal. See TESTING.md for remaining hardware/accessibility checks. Independent review is required before committing.
 
 ### Planned expansion: annotations and rectangle spotlight
 
@@ -231,12 +249,11 @@ Implementation outline: store annotation identities, shape geometry, styles and 
 
 Validation before review: geometry and hit-testing for every drag direction; endpoint/handle edits; zero-sized/cancelled rectangles; spotlight replacement and deletion through undo/redo; dim-mask interior/exterior and edge-of-display cases; coexistence with guides/Area; display invalidation; native click-through inside and outside the spotlight; hide/pin/resume, colour/opacity readability and keyboard/accessibility checks. Verify the underlying app stays live inside the clear region. Record unavailable display/assistive-technology checks explicitly.
 
-Status: planned only. Window resizing, spacing tokens and simple grids were selected first; annotations remain a candidate for a future reviewed slice in the order below.
+Status: planned only. Window resizing, spacing tokens, simple grids and reference overlays were selected first; annotations remain a candidate for a future reviewed slice in the order below.
 
 ### Subsequent candidates, in priority order
 
-1. **Reference overlays:** import an image as a manually aligned, adjustable-opacity reference; keep reference coordinates separate from measurement calibration. Defer capture-assisted comparison.
-2. **Annotations and spotlight:** arrows, lines and rectangles; a live, undimmed rectangular focus region with adjustable dimming outside it. See the stories above.
+1. **Annotations and spotlight:** arrows, lines and rectangles; a live, undimmed rectangular focus region with adjustable dimming outside it. See the stories above.
 
 Saved layouts and project profiles remain candidates after those workflows prove useful. Each candidate needs its own acceptance details and reviewed implementation slice; none is implicitly implemented by the image inspector.
 

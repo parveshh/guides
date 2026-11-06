@@ -11,12 +11,17 @@ struct OverlayControls: View {
     var onUnit: (MeasurementUnit) -> Void
     var onCalibration: (Calibration) -> Void
     var onGrid: (GridConfiguration) -> Void
+    var onReferenceOpen: () -> Void
+    var onReferenceApply: (ReferencePlacement) -> Void
+    var onReferenceAlign: () -> Void
+    var onReferenceRemove: () -> Void
     var onUndo: () -> Void
     var onRedo: () -> Void
     var onPin: () -> Void
     var onHide: () -> Void
     @State private var calibrationPresented = false
     @State private var gridPresented = false
+    @State private var referencePresented = false
     @State private var pendingUnit: MeasurementUnit?
 
     var body: some View {
@@ -31,9 +36,9 @@ struct OverlayControls: View {
         .buttonStyle(RailButtonStyle())
         .modifier(OverlaySurface())
         .padding(8)
-        .onChange(of: model.displayID) { _, _ in calibrationPresented = false; gridPresented = false }
+        .onChange(of: model.displayID) { _, _ in calibrationPresented = false; gridPresented = false; referencePresented = false }
         .onChange(of: model.presentation.mode) { _, mode in
-            if mode != .editing { calibrationPresented = false; gridPresented = false }
+            if mode != .editing { calibrationPresented = false; gridPresented = false; referencePresented = false }
         }
         .onChange(of: calibrationPresented) { _, visible in if !visible { pendingUnit = nil } }
     }
@@ -65,9 +70,9 @@ struct OverlayControls: View {
             HStack(spacing: 0) {
                 ForEach(MeasurementTool.allCases, id: \.self) { tool in
                     Button(tool.rawValue) { onTool(tool) }
-                        .buttonStyle(RailButtonStyle(selected: model.presentation.tool == tool))
+                        .buttonStyle(RailButtonStyle(selected: (model.presentation.tool == tool && !model.aligningReference)))
                         .fixedSize()
-                        .accessibilityAddTraits(model.presentation.tool == tool ? [.isSelected] : [])
+                        .accessibilityAddTraits((model.presentation.tool == tool && !model.aligningReference) ? [.isSelected] : [])
                 }
             }.background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
             divider
@@ -83,6 +88,7 @@ struct OverlayControls: View {
             .accessibilityLabel("Unit").accessibilityValue(model.unit.rawValue)
             Button(model.calibration.isConfirmed ? "Scale \(MeasurementText.number(model.calibration.pointsPerPixel * 100))%" : "Set scale…") {
                 gridPresented = false
+                referencePresented = false
                 pendingUnit = nil
                 calibrationPresented = true
             }
@@ -105,6 +111,7 @@ struct OverlayControls: View {
             Spacer(minLength: 0)
             Button {
                 calibrationPresented = false
+                referencePresented = false
                 gridPresented = true
             } label: { Image(systemName: "grid") }
                 .buttonStyle(RailButtonStyle(selected: model.grid.isEnabled))
@@ -116,10 +123,26 @@ struct OverlayControls: View {
                         onApply: { grid in onGrid(grid); gridPresented = false },
                         onCancel: { gridPresented = false })
                 }
+            Button {
+                calibrationPresented = false; gridPresented = false
+                referencePresented = true
+            } label: { Image(systemName: "photo.on.rectangle") }
+                .buttonStyle(RailButtonStyle(selected: model.aligningReference))
+                .accessibilityLabel("Reference image")
+                .help("Open and align a local reference image")
+                .popover(isPresented: $referencePresented) {
+                    ReferenceEditor(reference: model.reference, size: model.document.size,
+                        onOpen: { referencePresented = false; onReferenceOpen() },
+                        onApply: { placement in onReferenceApply(placement); referencePresented = false },
+                        onAlign: onReferenceAlign,
+                        onRemove: { onReferenceRemove(); referencePresented = false },
+                        onCancel: { referencePresented = false })
+                        .id(model.reference.overlay?.id)
+                }
             Button(action: onUndo) { Image(systemName: "arrow.uturn.backward") }
-                .disabled(!model.history.canUndo).help("Undo (⌘Z)").accessibilityLabel("Undo")
+                .disabled(!model.canUndo).help(model.aligningReference ? "Undo reference placement (⌘Z)" : "Undo measurement (⌘Z)").accessibilityLabel("Undo")
             Button(action: onRedo) { Image(systemName: "arrow.uturn.forward") }
-                .disabled(!model.history.canRedo).help("Redo (⇧⌘Z)").accessibilityLabel("Redo")
+                .disabled(!model.canRedo).help(model.aligningReference ? "Redo reference placement (⇧⌘Z)" : "Redo measurement (⇧⌘Z)").accessibilityLabel("Redo")
             divider
             Button("Pin & work", systemImage: "pin", action: onPin)
                 .fixedSize().help("Keep measurements visible and interact with other apps. Use the activation shortcut to edit again.")
@@ -132,6 +155,7 @@ struct OverlayControls: View {
 
     private func requestUnit(_ unit: MeasurementUnit) {
         if unit.requiresCalibration, !model.calibration.isConfirmed {
+            referencePresented = false; gridPresented = false
             pendingUnit = unit
             calibrationPresented = true
         } else { onUnit(unit) }

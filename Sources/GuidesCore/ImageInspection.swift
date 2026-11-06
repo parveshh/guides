@@ -65,7 +65,8 @@ public enum ImageInspection {
     public static let maximumBytes = 100 * 1_024 * 1_024
     public static let previewMaximumPixels = 800
 
-    public static func inspect(data: Data, name: String, isClipboardData: Bool = false) throws -> InspectedImage {
+    public static func inspect(data: Data, name: String, isClipboardData: Bool = false,
+                               maximumPreviewPixels: Int = previewMaximumPixels) throws -> InspectedImage {
         try Task.checkCancellation()
         guard data.count <= maximumBytes else { throw ImageInspectionError.tooLarge }
         let options = [kCGImageSourceShouldCache: false] as CFDictionary
@@ -85,7 +86,7 @@ public enum ImageInspection {
         let thumbnailOptions: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: previewMaximumPixels,
+            kCGImageSourceThumbnailMaxPixelSize: min(4096, max(1, maximumPreviewPixels)),
             kCGImageSourceShouldCacheImmediately: true
         ]
         guard let preview = CGImageSourceCreateThumbnailAtIndex(source, index, thumbnailOptions as CFDictionary)
@@ -103,13 +104,17 @@ public enum ImageInspection {
 
 /// Serial decoding keeps replacement imports off the UI thread and avoids concurrent large decodes.
 public actor ImageInspectionLoader: ImageInspecting {
-    public init() {}
+    private let maximumPreviewPixels: Int
+    public init(maximumPreviewPixels: Int = ImageInspection.previewMaximumPixels) {
+        self.maximumPreviewPixels = maximumPreviewPixels
+    }
 
     public func inspect(_ input: ImageInspectionInput) throws -> InspectedImage {
         try Task.checkCancellation()
         switch input {
         case .clipboard(let data):
-            return try ImageInspection.inspect(data: data, name: "Clipboard image", isClipboardData: true)
+            return try ImageInspection.inspect(data: data, name: "Clipboard image", isClipboardData: true,
+                maximumPreviewPixels: maximumPreviewPixels)
         case .file(let url):
             guard url.isFileURL else { throw ImageInspectionError.unreadableFile }
             let scoped = url.startAccessingSecurityScopedResource()
@@ -128,7 +133,7 @@ public actor ImageInspectionLoader: ImageInspecting {
             } catch {
                 throw ImageInspectionError.unreadableFile
             }
-            return try ImageInspection.inspect(data: data, name: url.lastPathComponent)
+            return try ImageInspection.inspect(data: data, name: url.lastPathComponent, maximumPreviewPixels: maximumPreviewPixels)
         }
     }
 }

@@ -2,6 +2,7 @@ import AppKit
 import GuidesCore
 import Observation
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 @Observable
@@ -17,6 +18,10 @@ final class EditorModel {
     var displayID: UInt32?
     var rulerAppearance: RulerAppearance = .solid
     var spacingScale: SpacingScale = .empty
+    let reference = ReferenceOverlayModel()
+    var aligningReference = false
+    var canUndo: Bool { aligningReference ? reference.overlay?.canUndo == true : history.canUndo }
+    var canRedo: Bool { aligningReference ? reference.overlay?.canRedo == true : history.canRedo }
     var grid = GridConfiguration()
     var gridGeometry: GridGeometry?
     var gridStatus = ""
@@ -97,6 +102,7 @@ final class OverlayController {
     private var readout: NSHostingView<MeasurementReadout>?
     private var previousApplication: NSRunningApplication?
     private var sessions = DisplaySessions()
+    private var referencePicker: NSOpenPanel?
     private var controlsWidth: NSLayoutConstraint?
     private var controlsHeight: NSLayoutConstraint?
     private var controlsTop: NSLayoutConstraint?
@@ -107,6 +113,7 @@ final class OverlayController {
         self.onInspectImage = onInspectImage
         self.onResizeWindow = onResizeWindow
         self.onSpacingTokens = onSpacingTokens
+        model.reference.onChange = { [weak self] in self?.saveSession(); self?.refresh() }
         model.calibration.setRootPixels(preferences.rootPixels)
         model.rulerAppearance = preferences.rulerAppearance
         model.spacingScale = preferences.spacingScale
@@ -125,6 +132,7 @@ final class OverlayController {
     }
 
     func edit(_ tool: MeasurementTool) {
+        cancelReferenceImport()
         canvas?.cancelGesture()
         saveSession()
         sessions.synchronize(NSScreen.screens.compactMap(\.guidesConfiguration))
@@ -142,6 +150,8 @@ final class OverlayController {
         model.unit = session.unit
         model.areaDimension = session.areaDimension
         model.grid = session.grid
+        model.aligningReference = false
+        model.reference.restore(session.reference)
         model.displayID = configuration.id
         if panel == nil { createPanel(screen: screen) }
         configureLayout(screen)
@@ -158,7 +168,9 @@ final class OverlayController {
     }
 
     func pin() {
+        cancelReferenceImport()
         canvas?.cancelGesture()
+        model.aligningReference = false
         model.presentation.pin()
         panel?.orderOut(nil)
         panel?.editing = false
@@ -169,7 +181,9 @@ final class OverlayController {
     }
 
     func hide() {
+        cancelReferenceImport()
         canvas?.cancelGesture()
+        model.aligningReference = false
         model.presentation.hide()
         panel?.editing = false
         panel?.orderOut(nil)
@@ -178,6 +192,7 @@ final class OverlayController {
     }
 
     func screenParametersChanged() {
+        cancelReferenceImport()
         canvas?.cancelGesture()
         saveSession()
         let activeID = sessions.activeID
@@ -189,6 +204,7 @@ final class OverlayController {
             model.calibration = Calibration(rootPixels: preferences.rootPixels)
             model.unit = .screenPoints
             model.grid = GridConfiguration()
+            model.reference.restore(nil)
             model.displayID = nil
         } else if let activeID, let screen = NSScreen.screens.first(where: { $0.guidesConfiguration?.id == activeID }) {
             configureLayout(screen)
@@ -204,6 +220,7 @@ final class OverlayController {
         session.unit = model.unit
         session.areaDimension = model.areaDimension
         session.grid = model.grid
+        session.reference = model.reference.overlay
         sessions.save(session)
     }
 
@@ -212,8 +229,8 @@ final class OverlayController {
         let usable = DisplayGeometry(frame: screen.frame).localRect(fromGlobal: screen.visibleFrame)
         canvas?.usableRect = usable
         model.backingFactor = screen.guidesConfiguration?.backingFactor ?? 1
-        model.controlsCompact = usable.width < 860
-        controlsWidth?.constant = max(240, min(860, usable.width - 32))
+        model.controlsCompact = usable.width < 900
+        controlsWidth?.constant = max(240, min(900, usable.width - 32))
         controlsHeight?.constant = model.controlsCompact ? 106 : 66
         controlsTop?.constant = usable.minY + 32
         panel?.contentView?.layoutSubtreeIfNeeded()
@@ -255,7 +272,7 @@ final class OverlayController {
         let controls = NSHostingView(rootView: OverlayControls(model: model,
             onRulerAppearance: { [weak self] in self?.preferences.setRulerAppearance($0) },
             onInspectImage: onInspectImage, onResizeWindow: onResizeWindow, onSpacingTokens: onSpacingTokens,
-            onTool: { [weak self] tool in self?.canvas?.cancelGesture(); self?.model.presentation.edit(tool); self?.refresh() },
+            onTool: { [weak self] tool in self?.canvas?.cancelGesture(); self?.model.aligningReference = false; self?.model.presentation.edit(tool); self?.refresh() },
             onUnit: { [weak self] unit in self?.model.unit = unit; self?.refresh() },
             onCalibration: { [weak self] calibration in
                 self?.model.calibration = calibration
@@ -267,12 +284,29 @@ final class OverlayController {
                 self?.model.grid = grid
                 self?.refresh()
             },
+            onReferenceOpen: { [weak self] in self?.openReference() },
+            onReferenceApply: { [weak self] placement in
+                self?.canvas?.cancelGesture()
+                self?.model.reference.overlay?.setPlacement(placement)
+                self?.model.aligningReference = false
+                self?.refresh()
+            },
+            onReferenceAlign: { [weak self] in
+                self?.model.aligningReference = true
+                self?.panel?.makeFirstResponder(self?.canvas)
+                self?.refresh()
+            },
+            onReferenceRemove: { [weak self] in
+                self?.canvas?.cancelGesture()
+                self?.model.aligningReference = false
+                self?.model.reference.restore(nil)
+            },
             onUndo: { [weak self] in self?.undo() }, onRedo: { [weak self] in self?.redo() },
             onPin: { [weak self] in self?.pin() }, onHide: { [weak self] in self?.hide() }))
         controls.translatesAutoresizingMaskIntoConstraints = false
         controls.sizingOptions = []
         root.addSubview(controls)
-        controlsWidth = controls.widthAnchor.constraint(equalToConstant: 860)
+        controlsWidth = controls.widthAnchor.constraint(equalToConstant: 900)
         controlsHeight = controls.heightAnchor.constraint(equalToConstant: 66)
         controlsTop = controls.topAnchor.constraint(equalTo: root.topAnchor, constant: 40)
         NSLayoutConstraint.activate([
@@ -303,13 +337,15 @@ final class OverlayController {
 
     private func undo() {
         canvas?.cancelGesture()
-        if let document = model.history.undo(current: model.document) { model.document = document }
+        if model.aligningReference { model.reference.overlay?.undo() }
+        else if let document = model.history.undo(current: model.document) { model.document = document }
         refresh()
     }
 
     private func redo() {
         canvas?.cancelGesture()
-        if let document = model.history.redo(current: model.document) { model.document = document }
+        if model.aligningReference { model.reference.overlay?.redo() }
+        else if let document = model.history.redo(current: model.document) { model.document = document }
         refresh()
     }
 
@@ -325,6 +361,37 @@ final class OverlayController {
         NSPasteboard.general.setString(text, forType: .string)
     }
 
+    private func cancelReferenceImport() {
+        let picker = referencePicker
+        referencePicker = nil
+        picker?.cancel(nil)
+        model.reference.cancelImport()
+    }
+
+    private func openReference() {
+        guard let panel, referencePicker == nil, model.presentation.mode == .editing,
+              let displayID = model.displayID else { return }
+        canvas?.cancelGesture()
+        model.aligningReference = false
+        let picker = NSOpenPanel()
+        referencePicker = picker
+        picker.title = "Open Reference Image"
+        picker.prompt = "Use Reference"
+        picker.allowedContentTypes = [.image]
+        picker.allowsMultipleSelection = false
+        picker.canChooseDirectories = false
+        picker.beginSheetModal(for: panel) { [weak self] response in
+            guard let self, self.referencePicker === picker else { return }
+            self.referencePicker = nil
+            guard self.model.displayID == displayID, self.model.presentation.mode == .editing else { return }
+            if response == .OK, let url = picker.url {
+                self.model.reference.load(url, displaySize: self.model.document.size)
+            }
+            self.panel?.makeFirstResponder(self.canvas)
+            self.refresh()
+        }
+    }
+
     private func refresh() {
         model.gridGeometry = nil
         model.gridStatus = ""
@@ -337,6 +404,7 @@ final class OverlayController {
             } catch { model.gridStatus = "Grid paused · " + error.localizedDescription }
         }
         controls?.isHidden = model.presentation.mode != .editing
+        canvas?.refreshReferenceImage()
         positionReadout()
         canvas?.updateAccessibility()
         canvas?.needsDisplay = true
@@ -344,7 +412,7 @@ final class OverlayController {
 
     private func positionReadout() {
         guard let canvas, let readout, let root = panel?.contentView else { return }
-        guard model.presentation.mode == .editing, model.canCopy else {
+        guard model.presentation.mode == .editing, !model.aligningReference, model.canCopy else {
             readout.isHidden = true
             canvas.readoutRect = .zero
             return

@@ -72,6 +72,18 @@ Spacing must be positive and no more than 1000000 in the chosen unit; opacity is
 
 Guides and Area stay usable without snapping to the grid. **Pin & work** keeps the grid visible and passes input to the app below; **Hide** removes the whole overlay. Clear Measurements and measurement undo leave the grid alone. Grid settings are kept per display for the current session; quitting or invalidating a display starts its grid fresh and hidden.
 
+## Align a reference image
+
+Open the **Reference image** button (overlapping photos) in the editing toolbar, then **Open Image…**. Choose one local raster image. It starts centered, fitted within 80% of the display without upscaling, at 50% opacity. PNG/JPEG/TIFF/GIF/HEIC and other Image I/O raster formats use their orientation-correct primary image; animated files do not animate. Invalid or cancelled replacements keep the previous reference.
+
+Reopen the reference controls to set **X**, **Y**, **Width** in screen points, and **Opacity** (10–100%). The aspect ratio stays fixed; both displayed dimensions must be 1–32768 screen points. Negative positions allow cropping at display edges while keeping at least one point visible. **Fit to display** resets the draft; **Apply** saves it and **Cancel** discards it. These dimensions describe the displayed reference, independently of source image pixels, image DPI, backing scale and measurement calibration.
+
+**Apply & align on canvas** enables dragging the reference and arrow-key nudging. Shift moves 10 screen points; Option moves one backing pixel. Command-Z/Shift-Command-Z undo/redo reference placement in alignment mode, with one action per drag. Escape cancels a drag, then exits alignment; choosing **Guides** or **Area** returns to measuring. Measurement undo remains separate. Replacing/removing an image resets its placement history and cannot itself be undone.
+
+**Show reference** can hide the image without removing it; **Remove Reference** removes only the image. Grid and measurements draw above it. **Pin & work** keeps the reference visible while input goes to the underlying app, and **Hide** hides the whole overlay. Each display keeps its own reference for this run; quitting or invalidating the display discards it. No image paths or placements are saved.
+
+Input is limited to 100 MiB; the rendered preview is bounded to 4096 pixels on its longest edge and may look softer when enlarged. This is a manual visual reference, not a pixel-diff or inspected CSS property. Importing requires no capture or Accessibility grant.
+
 ## Inspect an image
 
 Choose **Inspect Image…** from the menu bar or the toolbar’s ruler icon menu. Use **Open Image…** (Command-O), drop one local image into the window, or choose **Paste Image** (Command-V). Finder file copies preserve original file metadata; image-only clipboard copies are explicitly labelled as a clipboard representation, whose format and size can differ from the original file.
