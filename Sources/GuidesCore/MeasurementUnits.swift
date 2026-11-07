@@ -71,7 +71,8 @@ public enum MeasurementEngine {
     }
 
     public static func areaText(_ rect: CGRect, dimension: AreaDimension, unit: MeasurementUnit,
-                                calibration: Calibration, backingFactor: CGFloat) -> String? {
+                                calibration: Calibration, backingFactor: CGFloat, cornerRadius: CGFloat = 0) -> String? {
+        if dimension == .radius { return text(cornerRadius, unit: unit, calibration: calibration, backingFactor: backingFactor) }
         if dimension == .width { return text(rect.width, unit: unit, calibration: calibration, backingFactor: backingFactor) }
         if dimension == .height { return text(rect.height, unit: unit, calibration: calibration, backingFactor: backingFactor) }
         guard let width = value(rect.width, unit: unit, calibration: calibration, backingFactor: backingFactor),

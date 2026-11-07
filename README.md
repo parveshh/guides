@@ -1,6 +1,6 @@
 # Guides
 
-A native macOS menu bar utility for manual desktop guides, area measurements, inspecting supplied image files, and resizing windows. This is a local, personal app. It does not capture the screen or inspect CSS or Figma layers. The optional window tool reads the chosen window’s title and frame through macOS Accessibility.
+A native macOS menu bar utility for manual desktop guides, area measurements, inspecting supplied image files, and resizing windows. This is a local, personal app. It does not inspect CSS or Figma layers. Its optional corner magnifier uses Screen Recording access for a live, in-memory desktop crop; ordinary measurements need no permission. The optional window tool reads the chosen window’s title and frame through macOS Accessibility.
 
 ## Build and run
 
@@ -51,6 +51,18 @@ Click the canvas or an accessibility measurement element to focus measurement ke
 For example, 64 screen points at 200% scale is `32px`, or `2rem` with a 16px root. The app measures visible boundaries; it cannot infer exact padding, layout tokens, or source properties.
 
 Only one display is active at a time. Each display retains its own in-memory measurements, history, and calibration. Disconnecting a display or changing its logical size/backing scale clears that display's session and hides its overlay. Rearranging displays preserves their local measurements. Sleep hides the overlay; wake rechecks display configuration. Quitting starts all measurements and calibration fresh; the shortcut, root font size, ruler appearance, spacing-scale preferences and explicitly saved layouts remain. Layouts never load automatically.
+
+## Measure rounded corners
+
+Choose **Measure Corner Radius** from the menu bar, or draw/select an **Area** and choose **Radius** in its readout. Fit the Area’s bounds to the visible window or panel edges, excluding its shadow. Enter a radius in **screen points** and choose **Apply**, or use **− / +** for one-point adjustments until the rounded outline matches the corner. Decimal values are supported. Copy returns the radius in the selected measurement unit; Design px/rem require explicit calibration. For example, a 32-screen-point radius at 200% calibration is 16px, or 1rem with a 16px root.
+
+This fits equal circular arcs at the four corners. Treat it as a manual estimate when the actual shape uses continuous curves or unequal/elliptical corners. Radius ranges from zero (square) to half the shorter Area side. Moving retains it; shrinking the bounds caps it to the new limit, and drawing a replacement Area starts at zero. Undo/redo, deletion, Pin & work and saved layouts include the radius. Width/Height/Both still report the bounds; radius mode has no spacing-token suggestion. Saved libraries are written as version 2; version 1 libraries still load with square Areas, while older app builds reject version 2 instead of dropping the radius.
+
+Use **Border** to make the outline see-through (35% by default) or hide it completely at 0%. Handles and readouts stay visible. This viewing preference lasts only for the current run and is not saved in layouts.
+
+Choose **Magnifier…**, select a corner and **4× / 8× / 16×**, then **Start Magnifier**. If needed, use **Request Screen Recording…** and allow Guides in macOS settings, then **Check Access**; macOS may require a relaunch. Access is optional and is never requested at launch. The preview excludes Guides itself, magnifies the desktop with a fitted pink curve, and provides **±0.25 screen-point** radius and bounds-position adjustments. Zoom is measured in screen points; backing pixels remain distinct.
+
+Capture runs only after Start while the preview is open. Stop, Close, changing tools/selection, hiding/pinning, display changes and sleep stop it and discard the image. Reopening does not resume capture. Images stay in memory and are never saved, copied or transmitted. Ordinary radius fitting remains available without Screen Recording.
 
 ## Save layouts
 
@@ -122,10 +134,10 @@ Choose **Resize Window…** from the menu bar or the toolbar’s ruler menu. Sel
 
 A 2560 × 1440 window includes browser toolbars and borders. It is not a 2560 × 1440 CSS viewport or a monitor-resolution change. Browser zoom and display scaling also affect that comparison. Use browser responsive design tools when the requirement is an exact website viewport. Apps may restrict large or small windows; Guides reports the actual result.
 
-Window resizing requires **Guides** to be enabled in **System Settings → Privacy & Security → Accessibility**. Use the tool’s **Request Accessibility Access** button, grant access yourself, then **Check Access**. This locally signed development build may lose access after rebuilding. If the switch is on but Check Access still reports denied, remove only Guides from the privacy list, use + to add the current `build/DerivedData/Build/Products/Debug/Guides.app`, enable it, then Check Access again. On the tested macOS 27 system, the privacy list is named **Device Control and Data Access**. Measurement and image tools remain usable without this permission. The user-selected packaging is one app outside App Sandbox, with no network or capture features. Existing known local preferences are imported once from the former sandbox store without overwriting newer values.
+Window resizing requires **Guides** to be enabled in **System Settings → Privacy & Security → Accessibility**. Use the tool’s **Request Accessibility Access** button, grant access yourself, then **Check Access**. This locally signed development build may lose access after rebuilding. If the switch is on but Check Access still reports denied, remove only Guides from the privacy list, use + to add the current `build/DerivedData/Build/Products/Debug/Guides.app`, enable it, then Check Access again. On the tested macOS 27 system, the privacy list is named **Device Control and Data Access**. Measurement and image tools remain usable without this permission. The user-selected packaging is one app outside App Sandbox, with no network features; the separate corner magnifier is the only optional capture tool. Existing known local preferences are imported once from the former sandbox store without overwriting newer values.
 
 ## Verification and scope
 
 See [TESTING.md](TESTING.md) for executed checks and the remaining manual acceptance matrix, including global-shortcut reliability, mixed displays, full-screen/Spaces/Stage Manager, sleep/wake, and VoiceOver. A successful build is not evidence that those hardware scenarios passed.
 
-[PLAN.md](PLAN.md) contains the product stories, research, seven implementation slices, and later expansion ideas. [AGENTS.md](AGENTS.md) requires current documentation through Context7 and an independent read-only review of every exact commit snapshot. No capture tools, integrations, accounts, billing, or public release infrastructure are included.
+[PLAN.md](PLAN.md) contains the product stories, research, seven implementation slices, and later expansion ideas. [AGENTS.md](AGENTS.md) requires current documentation through Context7 and an independent read-only review of every exact commit snapshot. No screenshot/export tools beyond the optional in-memory corner magnifier, integrations, accounts, billing, or public release infrastructure are included.

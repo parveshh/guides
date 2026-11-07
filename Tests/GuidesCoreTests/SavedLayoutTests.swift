@@ -185,7 +185,7 @@ private func temporaryLibrary() throws -> URL {
     let url = try temporaryLibrary()
     defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
     let content = try SavedLayoutContent(session: layoutSession(), backingFactor: 2)
-    for bytes in [Data("corrupt".utf8), Data("{\"version\":2,\"layouts\":[]}".utf8), Data(repeating: 32, count: SavedLayoutsStore.maximumBytes + 1)] {
+    for bytes in [Data("corrupt".utf8), Data("{\"version\":3,\"layouts\":[]}".utf8), Data(repeating: 32, count: SavedLayoutsStore.maximumBytes + 1)] {
         try bytes.write(to: url)
         let store = SavedLayoutsStore(fileURL: url)
         #expect(store.storageError != nil && store.layouts.isEmpty)

@@ -183,6 +183,9 @@ final class OverlayCanvas: NSView {
                 model.document.setArea(AreaGeometry.moved(rect, dx: current.x - start.x, dy: current.y - start.y, within: bounds.size))
             case .resize(let handle, let rect):
                 model.document.setArea(AreaGeometry.resized(rect, handle: handle, to: current, within: bounds.size))
+                if let original = dragStart?.area, let area = model.document.area {
+                    model.document.setCornerRadius(min(original.cornerRadius, area.maximumRadius))
+                }
             }
             onChange?()
             return
@@ -354,11 +357,12 @@ final class OverlayCanvas: NSView {
     private func drawArea() {
         guard let area = model.document.area else { return }
         let selected = model.document.isAreaSelected
-        let path = NSBezierPath(rect: area.rect)
-        NSColor.black.withAlphaComponent(0.85).setStroke(); path.lineWidth = 3; path.stroke()
-        OverlayStyle.guide.withAlphaComponent(selected ? 1 : 0.75).setStroke()
+        let path = NSBezierPath(roundedRect: area.rect, xRadius: area.cornerRadius, yRadius: area.cornerRadius)
+        let opacity = area.cornerRadius > 0 || model.areaDimension == .radius ? model.radiusOutlineOpacity : 1
+        NSColor.black.withAlphaComponent(0.85 * opacity).setStroke(); path.lineWidth = 3; path.stroke()
+        OverlayStyle.guide.withAlphaComponent((selected ? 1 : 0.75) * opacity).setStroke()
         path.lineWidth = 1 / (window?.backingScaleFactor ?? 1); path.stroke()
-        let text = model.areaText(area.rect)
+        let text = model.areaText(area.rect) + (area.cornerRadius > 0 || model.areaDimension == .radius ? " · R " + model.text(area.cornerRadius) : "")
         if !selected || !model.showsMeasurementReadout {
             drawLabel(text, rect: labelRect(text, centered: CGPoint(x: area.rect.midX, y: area.rect.minY - 18)), selected: selected)
         }
@@ -541,7 +545,7 @@ final class OverlayCanvas: NSView {
                 }
         }
         if let area = model.document.area {
-            _ = element(area.id.uuidString, label: "Area \(model.areaText(area.rect))", rect: area.rect, selected: model.document.isAreaSelected) { [weak self] in
+            _ = element(area.id.uuidString, label: "Area \(model.areaText(area.rect)) · Radius \(model.text(area.cornerRadius))", rect: area.rect, selected: model.document.isAreaSelected) { [weak self] in
                 guard let self, self.model.presentation.mode == .editing else { return }
                 self.cancelGesture(); self.model.document.selectArea(); self.model.presentation.edit(.area)
                 self.window?.makeFirstResponder(self); self.onChange?()

@@ -38,6 +38,7 @@ public struct SavedLayoutContent: Codable, Equatable, Sendable {
     public let backingFactor: CGFloat
     let guides: [GuideRecord]
     let area: CGRect?
+    let areaRadius: CGFloat?
     let grid: GridRecord
     let shapes: [ShapeRecord]
     let spotlightIndex: Int?
@@ -53,6 +54,7 @@ public struct SavedLayoutContent: Codable, Equatable, Sendable {
         size = session.document.size; self.backingFactor = backingFactor
         guides = session.document.guides.map { GuideRecord(axis: $0.axis.rawValue, position: $0.position) }
         area = session.document.area?.rect
+        areaRadius = session.document.area?.cornerRadius
         let g = session.grid
         grid = GridRecord(enabled: g.isEnabled, spacing: g.spacing, unit: g.unit.rawValue, origin: g.origin, opacity: g.opacity)
         shapes = session.annotations.document.shapes.map { ShapeRecord(kind: $0.kind.rawValue, start: $0.start, end: $0.end, style: StyleRecord($0.style)) }
@@ -86,6 +88,9 @@ public struct SavedLayoutContent: Codable, Equatable, Sendable {
             guard area.size.width.isFinite, area.size.height.isFinite, area.size.width > 0, area.size.height > 0,
                   contains(area.origin), contains(CGPoint(x: area.maxX, y: area.maxY)) else { throw LayoutError.invalid }
             result.document.setArea(area)
+        }
+        if let radius = areaRadius {
+            guard result.document.setCornerRadius(radius) else { throw LayoutError.invalid }
         }
         result.document.select([])
         guard let unit = MeasurementUnit(rawValue: grid.unit), contains(grid.origin) else { throw LayoutError.invalid }
@@ -166,7 +171,7 @@ public final class SavedLayoutsStore {
             let data = try Data(contentsOf: fileURL)
             guard data.count <= Self.maximumBytes else { throw LayoutError.limit }
             struct Header: Decodable { let version: Int }
-            guard try JSONDecoder().decode(Header.self, from: data).version == 1 else { throw LayoutError.version }
+            guard try (1...2).contains(JSONDecoder().decode(Header.self, from: data).version) else { throw LayoutError.version }
             let archive = try JSONDecoder().decode(Archive.self, from: data)
             try validate(archive.layouts)
             layouts = archive.layouts; storageError = nil; deleted = nil
@@ -222,7 +227,7 @@ public final class SavedLayoutsStore {
         try validate(updated)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(Archive(version: 1, layouts: updated))
+        let data = try encoder.encode(Archive(version: 2, layouts: updated))
         guard data.count <= Self.maximumBytes else { throw LayoutError.limit }
         try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try data.write(to: fileURL, options: .atomic)

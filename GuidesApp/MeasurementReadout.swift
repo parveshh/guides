@@ -4,6 +4,9 @@ import GuidesCore
 struct MeasurementReadout: View {
     var model: EditorModel
     var onDimension: (AreaDimension) -> Void
+    var onRadius: (CGFloat) -> Void
+    var onNudgeArea: (CGFloat, CGFloat) -> Void
+    var onOpacity: (CGFloat) -> Void
     var onCopy: () -> Void
     var onCopyVariable: () -> Void
 
@@ -20,6 +23,19 @@ struct MeasurementReadout: View {
                     Spacer(minLength: 0)
                 }
             }
+            if model.document.isAreaSelected, model.areaDimension == .radius, let area = model.document.area {
+                CornerRadiusEditor(area: area, apply: onRadius)
+                HStack {
+                    Text("Border \(Int((model.radiusOutlineOpacity * 100).rounded()))%").font(.system(size: 11)).foregroundStyle(.white)
+                    Slider(value: Binding(get: { model.radiusOutlineOpacity }, set: { onOpacity($0) }), in: 0...1, step: 0.05)
+                        .accessibilityLabel("Radius border opacity")
+                    Button("Magnifier…") { model.magnifierPresented = true }
+                        .buttonStyle(RailButtonStyle(filled: true))
+                        .popover(isPresented: Binding(get: { model.magnifierPresented }, set: { model.magnifierPresented = $0 })) {
+                            CornerMagnifierView(model: model, onRadius: onRadius, onNudge: onNudgeArea, onOpacity: onOpacity)
+                        }
+                }
+            }
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(model.contextText).font(.system(size: 11)).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
@@ -32,7 +48,7 @@ struct MeasurementReadout: View {
                     .buttonStyle(RailButtonStyle(filled: true)).fixedSize()
                     .help("Copy selected measurement (Command-C)")
             }
-            if !model.spacingScale.tokens.isEmpty {
+            if !model.spacingScale.tokens.isEmpty && !(model.document.isAreaSelected && model.areaDimension == .radius) {
                 Divider().overlay(.white.opacity(0.15))
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -57,5 +73,39 @@ struct MeasurementReadout: View {
         .padding(12)
         .modifier(OverlaySurface())
         .padding(8)
+        .onChange(of: model.magnifierPresented) { _, shown in if !shown { model.magnifier.stop() } }
+    }
+}
+
+private struct CornerRadiusEditor: View {
+    let area: AreaMeasurement
+    let apply: (CGFloat) -> Void
+    @State private var draft = ""
+    @State private var error: String?
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Fit the bounds, then adjust the curve to the visible corner.")
+                .font(.system(size: 11)).foregroundStyle(.white.opacity(0.7)).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 6) {
+                TextField("Radius", text: $draft).textFieldStyle(.roundedBorder).frame(width: 65)
+                    .accessibilityLabel("Corner radius in screen points").onSubmit(commit)
+                Text("screen pt").font(.system(size: 11))
+                Button("−") { apply(max(0, area.cornerRadius - 1)) }.accessibilityLabel("Decrease radius by one screen point")
+                Button("+") { apply(min(area.maximumRadius, area.cornerRadius + 1)) }.accessibilityLabel("Increase radius by one screen point")
+                Button("Apply", action: commit)
+            }.buttonStyle(RailButtonStyle(filled: true))
+            Text(error ?? "Circular fit · range 0–\(MeasurementText.number(area.maximumRadius)) screen pt")
+                .font(.system(size: 11)).foregroundStyle(error == nil ? .white.opacity(0.7) : .orange)
+                .lineLimit(2)
+        }
+        .onAppear(perform: reset)
+        .onChange(of: area) { _, _ in reset() }
+    }
+    private func reset() { draft = MeasurementText.number(area.cornerRadius, decimals: 4); error = nil }
+    private func commit() {
+        guard let value = Double(draft), value.isFinite, value >= 0, value <= Double(area.maximumRadius) else {
+            error = "Enter 0–\(MeasurementText.number(area.maximumRadius)) screen pt."; return
+        }
+        apply(CGFloat(value)); reset()
     }
 }

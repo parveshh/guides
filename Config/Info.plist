@@ -10,4 +10,5 @@
 <key>LSMinimumSystemVersion</key><string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 <key>LSUIElement</key><true/>
 <key>NSPrincipalClass</key><string>NSApplication</string>
+<key>NSScreenCaptureUsageDescription</key><string>Guides magnifies a small desktop region while you align a corner radius. Captured images stay in memory and are never saved or sent.</string>
 </dict></plist>

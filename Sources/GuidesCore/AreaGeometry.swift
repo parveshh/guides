@@ -4,10 +4,15 @@ import CoreGraphics
 public struct AreaMeasurement: Identifiable, Equatable, Sendable {
     public let id: UUID
     public var rect: CGRect
-    public init(id: UUID = UUID(), rect: CGRect) { self.id = id; self.rect = rect }
+    public var cornerRadius: CGFloat
+    public var maximumRadius: CGFloat { max(0, min(rect.width, rect.height) / 2) }
+    public init(id: UUID = UUID(), rect: CGRect, cornerRadius: CGFloat = 0) {
+        self.id = id; self.rect = rect
+        self.cornerRadius = cornerRadius.isFinite ? min(max(0, cornerRadius), max(0, min(rect.width, rect.height) / 2)) : 0
+    }
 }
 
-public enum AreaDimension: String, CaseIterable, Sendable { case width = "Width", height = "Height", both = "Both" }
+public enum AreaDimension: String, CaseIterable, Sendable { case width = "Width", height = "Height", both = "Both", radius = "Radius" }
 public enum AreaHandle: CaseIterable, Equatable, Sendable {
     case topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left
 

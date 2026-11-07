@@ -11,6 +11,9 @@ final class EditorModel {
     var document = MeasurementDocument(size: .zero)
     var history = DocumentHistory()
     var areaDimension: AreaDimension = .both
+    var radiusOutlineOpacity: CGFloat = 0.35
+    var magnifierPresented = false
+    let magnifier = CornerMagnifier(source: CornerCaptureService())
     var calibration = Calibration()
     var unit: MeasurementUnit = .screenPoints
     var backingFactor: CGFloat = 1
@@ -33,7 +36,7 @@ final class EditorModel {
             switch areaDimension {
             case .width: return rect.width
             case .height: return rect.height
-            case .both: return nil
+            case .both, .radius: return nil
             }
         }
         return document.selectedGap?.distance
@@ -43,13 +46,13 @@ final class EditorModel {
     }
     var spacingHint: String {
         if !calibration.isConfirmed { return "Set scale to compare spacing tokens." }
-        if document.isAreaSelected && areaDimension == .both { return "Select Width or Height to compare tokens." }
+        if document.isAreaSelected && (areaDimension == .both || areaDimension == .radius) { return "Select Width or Height to compare tokens." }
         return "This measurement cannot be compared."
     }
     var copyText: String? {
         if document.isAreaSelected, let rect = document.area?.rect, rect.width > 0, rect.height > 0 {
             return MeasurementEngine.areaText(rect, dimension: areaDimension, unit: unit,
-                calibration: calibration, backingFactor: backingFactor)
+                calibration: calibration, backingFactor: backingFactor, cornerRadius: document.area?.cornerRadius ?? 0)
         }
         return document.selectedGap.flatMap { MeasurementEngine.text($0.distance, unit: unit,
             calibration: calibration, backingFactor: backingFactor) }
@@ -57,8 +60,9 @@ final class EditorModel {
     var canCopy: Bool { copyText != nil }
     var selectedText: String { copyText ?? "Select a measurement" }
     var contextText: String {
-        if !unit.requiresCalibration { return "Manual · \(unit.rawValue)" }
-        return "Manual · \(MeasurementText.number(calibration.pointsPerPixel * 100))% scale · \(MeasurementText.number(calibration.rootPixels))px/rem"
+        let origin = document.isAreaSelected && areaDimension == .radius ? "Manual circular fit" : "Manual"
+        if !unit.requiresCalibration { return "\(origin) · \(unit.rawValue)" }
+        return "\(origin) · \(MeasurementText.number(calibration.pointsPerPixel * 100))% scale · \(MeasurementText.number(calibration.rootPixels))px/rem"
     }
     func text(_ distance: CGFloat) -> String {
         MeasurementEngine.text(distance, unit: unit, calibration: calibration, backingFactor: backingFactor) ?? "Unavailable"
@@ -139,6 +143,7 @@ final class OverlayController {
     }
 
     func edit(_ tool: OverlayTool) {
+        model.magnifierPresented = false; model.magnifier.stop()
         cancelReferenceImport()
         canvas?.cancelGesture()
         saveSession()
@@ -175,6 +180,13 @@ final class OverlayController {
         else { edit(model.presentation.tool) }
     }
 
+    func measureRadius() {
+        edit(.area)
+        model.areaDimension = .radius
+        if model.document.area != nil { model.document.selectArea() }
+        refresh()
+    }
+
     func pin() {
         cancelReferenceImport()
         canvas?.cancelGesture()
@@ -200,6 +212,7 @@ final class OverlayController {
     }
 
     func screenParametersChanged() {
+        model.magnifierPresented = false; model.magnifier.stop()
         cancelReferenceImport()
         canvas?.cancelGesture()
         saveSession()
@@ -345,7 +358,12 @@ final class OverlayController {
         let controls = NSHostingView(rootView: OverlayControls(model: model,
             onRulerAppearance: { [weak self] in self?.preferences.setRulerAppearance($0) },
             onInspectImage: onInspectImage, onResizeWindow: onResizeWindow, onSpacingTokens: onSpacingTokens, onSavedLayouts: onSavedLayouts,
-            onTool: { [weak self] tool in self?.canvas?.cancelGesture(); self?.model.aligningReference = false; self?.model.presentation.edit(tool); self?.refresh() },
+            onTool: { [weak self] tool in
+                guard let self else { return }
+                self.model.magnifierPresented = false; self.model.magnifier.stop()
+                self.canvas?.cancelGesture(); self.model.aligningReference = false
+                self.model.presentation.edit(tool); self.refresh()
+            },
             onUnit: { [weak self] unit in self?.model.unit = unit; self?.refresh() },
             onCalibration: { [weak self] calibration in
                 self?.model.calibration = calibration
@@ -396,6 +414,24 @@ final class OverlayController {
         ])
         let readout = NSHostingView(rootView: MeasurementReadout(model: model,
             onDimension: { [weak self] dimension in self?.model.areaDimension = dimension; self?.refresh() },
+            onRadius: { [weak self] value in
+                guard let self else { return }
+                self.canvas?.cancelGesture()
+                let before = self.model.document
+                self.model.document.setCornerRadius(value)
+                self.model.history.record(before: before, after: self.model.document)
+                if !self.model.magnifierPresented { self.panel?.makeFirstResponder(self.canvas) }
+                self.refresh()
+            },
+            onNudgeArea: { [weak self] dx, dy in
+                guard let self else { return }
+                self.canvas?.cancelGesture()
+                let before = self.model.document
+                self.model.document.nudge(dx: dx, dy: dy)
+                self.model.history.record(before: before, after: self.model.document)
+                self.refresh()
+            },
+            onOpacity: { [weak self] opacity in self?.model.radiusOutlineOpacity = opacity; self?.refresh() },
             onCopy: { [weak self] in self?.copySelection() },
             onCopyVariable: { [weak self] in self?.copyVariable() }))
         readout.sizingOptions = []
@@ -483,6 +519,9 @@ final class OverlayController {
     }
 
     private func refresh() {
+        if !model.showsMeasurementReadout || !model.document.isAreaSelected || model.areaDimension != .radius {
+            model.magnifierPresented = false; model.magnifier.stop()
+        }
         model.gridGeometry = nil
         model.gridStatus = ""
         if model.grid.isEnabled {
@@ -526,9 +565,10 @@ final class OverlayController {
         else { return }
         let valueWidth = (model.selectedText as NSString).size(withAttributes: [.font: NSFont.monospacedSystemFont(ofSize: 16, weight: .semibold)]).width
         let contextWidth = (model.contextText as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11)]).width
-        let hasTokens = !model.spacingScale.tokens.isEmpty
-        let size = CGSize(width: min(460, max(hasTokens ? 420 : 300, max(valueWidth, contextWidth) + 140)),
-            height: (area == nil ? 76 : 115) + (hasTokens ? 100 : 0))
+        let radius = area != nil && model.areaDimension == .radius
+        let hasTokens = !model.spacingScale.tokens.isEmpty && !radius
+        let size = CGSize(width: min(460, max(hasTokens ? 420 : (radius ? 400 : 300), max(valueWidth, contextWidth) + 140)),
+            height: (area == nil ? 76 : 115) + (hasTokens ? 100 : 0) + (radius ? 146 : 0))
         let frame = MeasurementReadoutLayout.frame(size: size, anchor: anchor, beside: gap?.axis == .horizontal,
             usable: canvas.usableRect, toolbar: canvas.controlsRect, area: area)
         readout.frame = canvas.convert(frame, to: root)

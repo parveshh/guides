@@ -97,7 +97,8 @@ public struct MeasurementDocument: Equatable, Sendable {
         guard [rect.origin.x, rect.origin.y, rect.width, rect.height].allSatisfy(\.isFinite) else { return }
         let bounded = AreaGeometry.rectangle(from: CGPoint(x: rect.minX, y: rect.minY),
             to: CGPoint(x: rect.maxX, y: rect.maxY), within: size)
-        area = AreaMeasurement(id: id ?? area?.id ?? UUID(), rect: bounded)
+        let radius = id == nil || id == area?.id ? area?.cornerRadius ?? 0 : 0
+        area = AreaMeasurement(id: id ?? area?.id ?? UUID(), rect: bounded, cornerRadius: radius)
         isAreaSelected = true
         selection = []
     }
@@ -106,6 +107,12 @@ public struct MeasurementDocument: Equatable, Sendable {
         guard area != nil else { return }
         selection = []
         isAreaSelected = true
+    }
+
+    @discardableResult public mutating func setCornerRadius(_ value: CGFloat) -> Bool {
+        guard let area, value.isFinite, value >= 0, value <= area.maximumRadius else { return false }
+        self.area?.cornerRadius = value
+        return true
     }
 
     /// Bracket keys traverse guides in visual order, then the area. Shift keeps a parallel anchor.
