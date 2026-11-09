@@ -311,9 +311,39 @@ Implementation is complete. Validation: 103 core tests pass, including crop geom
 
 ### Subsequent candidates
 
-Saved layouts is selected above. Project profiles remains the next candidate; choose and specify it after this slice is complete.
+Saved layouts and corner radius are complete. On 2026-11-09 the user widened the direction to a developer toolset for full-stack developers and approved the roadmap below. Each later candidate needs its own acceptance details and reviewed implementation slice; none is implicitly implemented by earlier tools.
 
-Each later candidate needs its own acceptance details and reviewed implementation slice; none is implicitly implemented by earlier tools.
+### Full-stack toolset roadmap
+
+Groups are delivered in order, one reviewed slice per item. Group A needs no new permission and starts now. Groups B and C are approved for the roadmap only: each slice must first record its own permission, capture and network contract here and be explicitly confirmed by the user, with that authorization recorded in `AGENTS.md`, before implementation.
+
+| Group | Slice | Summary |
+| --- | --- | --- |
+| A. Front-end loop | A1 Project profiles | Named local sets of rem base and spacing scale, applied explicitly. Later slices add their settings to the profile. |
+| | A2 Copy formats | Copy a measurement as CSS declarations (`width`, `height`, `border-radius`, gap) and Tailwind classes, from calibrated values only. |
+| | A3 Breakpoints and device presets | User-supplied breakpoint markers on the top ruler; device sizes in Resize Window. |
+| | A4 Column grid | Columns, gutters and margins alongside the square grid. |
+| | A5 Calculators | `clamp()` fluid sizing, px/rem/em/vw conversion, aspect-ratio lock for Area. |
+| | A6 Image inspector extras | `@2x`/`srcset` size calculator and base64 data URI copy. |
+| | A7 Annotation extras | Text labels and ellipses. |
+| B. Capture-assisted tools | B1 Colour picker | Sample a pixel; copy hex/rgb/hsl/oklch; WCAG contrast between two samples. |
+| | B2 Edge snapping | Snap guides and Area to detected edges; detect element bounds. |
+| | B3 Annotated screenshot export | Save the visible overlay with the desktop beneath it to a user-chosen file. |
+| | B4 Reference pixel diff | Compare the reference image with the live screen region. |
+| C. Local environment and network tools | C1 Port monitor | List local listening ports and their processes; stop a chosen process after confirmation. |
+| | C2 HTTP request tester | Send a user-written request to a user-supplied host and show the response. |
+| | C3 Webhook inspector | Receive and display requests on a local port. |
+| | C4 DNS and TLS checks | Resolve a user-supplied host and show certificate details. |
+
+Constraints carried into Groups B and C:
+
+- Group B reuses the existing optional Screen Recording grant, requested only from an explicit button, and captures only while its tool is active. B3 is the first feature that writes a captured image; it saves only to a file the user chooses, on an explicit action.
+- Group C is the first network use. Requests go only to hosts the user types, on an explicit action; nothing is sent in the background, and there are no accounts, telemetry or cloud storage. C1 and C3 stay on this Mac.
+- Measurement, image inspection and every Group A tool remain usable without any new privacy grant or network access; A3 device presets live inside Resize Window, which keeps its existing optional Accessibility requirement.
+
+Deferred by the user on 2026-11-09: a local developer utilities panel (JSON/JWT/Base64/hash, UUID, timestamps, cron, regex, diff, SQL formatting, clipboard-aware opening). It is not scheduled.
+
+Earlier staging, retained for context:
 
 | Stage | Features | Trigger |
 | --- | --- | --- |
