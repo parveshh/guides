@@ -72,7 +72,15 @@ Select a saved entry to **Load Layout**, **Rename** or **Delete** it. The list s
 
 **Undo Layout Load** restores the setup, calibration and tool histories from before the latest load in this run, discarding subsequent canvas edits. It preserves the current reference image and global rem base. Recovery applies only to its original display and is cleared if that display’s size/backing factor changes or it disconnects. Ordinary Command-Z handles edits made after loading. **Undo Delete** recovers the most recently deleted layout during this run, provided its name and library capacity are still available.
 
-The library is stored locally at `~/Library/Application Support/Guides/layouts.json`, with atomic writes. Limits are 100 layouts, 1000 guides and 1000 annotations per layout, and 8 MiB total. An unreadable, invalid or newer-version library is retained and blocks changes; correct the file externally, then use **Retry**. Relaunch always starts with an empty overlay and fresh calibration. Saved layouts do not include reference files, calibration, preferences or project profiles; there is no sync or import/export UI.
+The library is stored locally at `~/Library/Application Support/Guides/layouts.json`, with atomic writes. Limits are 100 layouts, 1000 guides and 1000 annotations per layout, and 8 MiB total. An unreadable, invalid or newer-version library is retained and blocks changes; correct the file externally, then use **Retry**. Relaunch always starts with an empty overlay and fresh calibration. Saved layouts do not include reference files, calibration, preferences or project profile settings; there is no sync or import/export UI.
+
+## Switch project profiles
+
+Choose **Project Profiles…** from the menu bar or toolbar’s ruler menu. Enter a name and choose **Save Current** to store the current rem base and spacing tokens with their tolerance. Select a profile and choose **Apply Profile** to replace both settings together; **Undo Apply** restores the values from before the latest apply during this run, replacing any rem-base or token edits made since that apply. A profile that already equals the current settings is labelled as matching. Rename and Delete act on the selected profile, with one-level **Undo Delete**.
+
+Profiles are snapshots: editing the rem base or tokens afterwards does not change a saved profile, and nothing is applied at launch. Applying does not touch measurements, calibration scale, ruler appearance or saved layouts. Opening Project Profiles closes an open Spacing Tokens editor and discards its unsaved draft, and the reverse.
+
+The library is stored locally at `~/Library/Application Support/Guides/profiles.json`, with atomic writes, limited to 50 profiles and 2 MiB. An unreadable, invalid or newer-version library is retained and blocks changes; correct the file externally, then use **Retry**. There is no sync or import/export UI, and profiles never read a repository, CSS file or design file.
 
 ## Compare spacing tokens
 

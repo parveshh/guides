@@ -25,6 +25,8 @@ final class SpacingTokensController {
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
     }
+
+    func close() { window?.close() }
 }
 
 /// The accessory app has no Edit menu to supply these responder commands.

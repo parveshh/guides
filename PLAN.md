@@ -343,6 +343,21 @@ Constraints carried into Groups B and C:
 
 Deferred by the user on 2026-11-09: a local developer utilities panel (JSON/JWT/Base64/hash, UUID, timestamps, cron, regex, diff, SQL formatting, clipboard-aware opening). It is not scheduled.
 
+### Slice A1: project profiles
+
+Save the settings that differ between projects under a name and apply them explicitly. A profile is a local snapshot of preferences, not an inspected project configuration; it never reads a repository, CSS file or design file.
+
+| ID | Story | Acceptance |
+| --- | --- | --- |
+| P01 | Save the current project settings. | Project Profiles in the menu bar and toolbar tools menu opens a separate window, hiding and retaining measurements. Save Current stores the rem base and the spacing scale with its tolerance. Trim names, require 1–80 characters and unique names ignoring case. Saving creates a new snapshot; later preference edits do not update it. |
+| P02 | Switch projects explicitly. | Apply Profile replaces the rem base and spacing scale together through the existing preferences, so open sessions update as they do from Settings and Spacing Tokens. Geometry, calibration scale, ruler appearance, shortcut and saved layouts are untouched. A profile equal to the current settings is labelled as matching and has nothing to apply. Nothing applies automatically at launch; the applied values persist as ordinary preferences. |
+| P03 | Recover from an apply. | Undo Apply restores the rem base and spacing scale from before the latest apply, once, during this run, replacing any rem-base or token edits made since that apply. It remains available after the applied profile is deleted. |
+| P04 | Manage and persist safely. | Select, rename and delete profiles; delete has one-level Undo Delete during this run. Store one versioned JSON library at `~/Library/Application Support/Guides/profiles.json` with atomic writes. Validate complete archives before accepting them; unreadable, corrupt or newer-version files are retained and block changes with a visible error and Retry. Limit to 50 profiles and a 2 MiB library. Invalid names or failed writes leave the library unchanged. |
+
+Implementation: `ProjectProfileContent` and `ProjectProfilesStore` in GuidesCore follow the saved-layout store pattern and reuse its name rules. Content is validated through the existing `SpacingScale` parser and the positive-finite rem-base rule before it can reach preferences. A dedicated AppKit/SwiftUI window reuses the shared text commands. The Spacing Tokens editor and Project Profiles close each other when opened, so a stale token draft cannot overwrite an applied profile; an unsaved token draft is discarded as it is on Cancel. No new permission, capture, network use, import/export or sync is added. Later Group A slices (breakpoints, device presets, column grid) add their settings to the profile with an archive version bump.
+
+Validation: 109 core tests pass, including six new profile tests for content round-trip and invalid rem bases, library save/rename/delete/undo across fresh stores, apply and undo with preference notifications, retained corrupt/future/oversized libraries, all-or-nothing archive validation and failed writes. The native Debug build passes and the rebuilt app launches. Native interaction with the new window is unverified: the unindexed development build could not be driven by the available automation, so the manual checks are listed in TESTING.md. Commit gate: clean independent review of the exact staged diff.
+
 Earlier staging, retained for context:
 
 | Stage | Features | Trigger |

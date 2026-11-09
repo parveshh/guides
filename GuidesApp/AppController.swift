@@ -17,11 +17,13 @@ final class AppController: NSObject, NSApplicationDelegate {
     private lazy var overlay = OverlayController(preferences: preferences, onInspectImage: { [weak self] in self?.inspectImage() },
         onResizeWindow: { [weak self] in self?.resizeWindow() },
         onSpacingTokens: { [weak self] in self?.editSpacingTokens() },
-        onSavedLayouts: { [weak self] in self?.showSavedLayouts() })
+        onSavedLayouts: { [weak self] in self?.showSavedLayouts() },
+        onProjectProfiles: { [weak self] in self?.showProjectProfiles() })
     private let imageInspector = ImageInspectorController()
     private let windowResizer = WindowResizeController()
     private let spacingTokens = SpacingTokensController()
     private let savedLayouts = SavedLayoutsController()
+    private let projectProfiles = ProjectProfilesController()
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -39,6 +41,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         menu.addItem(item("Resize Window…", #selector(resizeWindow)))
         menu.addItem(item("Spacing Tokens…", #selector(editSpacingTokens)))
         menu.addItem(item("Saved Layouts…", #selector(showSavedLayouts)))
+        menu.addItem(item("Project Profiles…", #selector(showProjectProfiles)))
         menu.addItem(.separator())
         menu.addItem(item("Hide Measurements", #selector(hideMeasurements)))
         let clearItem = item("Clear Measurements", #selector(clearMeasurements))
@@ -84,7 +87,14 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
     @objc private func editSpacingTokens() {
         overlay.hide()
+        // One editor at a time owns the spacing scale, so a stale draft cannot overwrite an applied profile.
+        projectProfiles.close()
         spacingTokens.show(preferences: preferences)
+    }
+    @objc private func showProjectProfiles() {
+        overlay.hide()
+        spacingTokens.close()
+        projectProfiles.show(preferences: preferences)
     }
     @objc private func hideMeasurements() { overlay.hide() }
     @objc private func showSavedLayouts() { savedLayouts.show(overlay: overlay) }

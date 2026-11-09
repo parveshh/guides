@@ -104,6 +104,7 @@ final class OverlayController {
     private let onResizeWindow: () -> Void
     private let onSpacingTokens: () -> Void
     private let onSavedLayouts: () -> Void
+    private let onProjectProfiles: () -> Void
     private var layoutRecovery = LayoutLoadRecovery()
     private var panel: OverlayPanel?
     private var canvas: OverlayCanvas?
@@ -118,12 +119,14 @@ final class OverlayController {
     private var controlsCenterX: NSLayoutConstraint?
 
     init(preferences: GuidesPreferences, onInspectImage: @escaping () -> Void, onResizeWindow: @escaping () -> Void,
-         onSpacingTokens: @escaping () -> Void, onSavedLayouts: @escaping () -> Void) {
+         onSpacingTokens: @escaping () -> Void, onSavedLayouts: @escaping () -> Void,
+         onProjectProfiles: @escaping () -> Void) {
         self.preferences = preferences
         self.onInspectImage = onInspectImage
         self.onResizeWindow = onResizeWindow
         self.onSpacingTokens = onSpacingTokens
         self.onSavedLayouts = onSavedLayouts
+        self.onProjectProfiles = onProjectProfiles
         model.reference.onChange = { [weak self] in self?.saveSession(); self?.refresh() }
         model.calibration.setRootPixels(preferences.rootPixels)
         model.rulerAppearance = preferences.rulerAppearance
@@ -358,6 +361,7 @@ final class OverlayController {
         let controls = NSHostingView(rootView: OverlayControls(model: model,
             onRulerAppearance: { [weak self] in self?.preferences.setRulerAppearance($0) },
             onInspectImage: onInspectImage, onResizeWindow: onResizeWindow, onSpacingTokens: onSpacingTokens, onSavedLayouts: onSavedLayouts,
+            onProjectProfiles: onProjectProfiles,
             onTool: { [weak self] tool in
                 guard let self else { return }
                 self.model.magnifierPresented = false; self.model.magnifier.stop()
