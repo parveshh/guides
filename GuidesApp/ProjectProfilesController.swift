@@ -13,7 +13,7 @@ final class ProjectProfilesController {
             NSApp.activate(); window.makeKeyAndOrderFront(nil)
             return
         }
-        let window = ProjectProfilesWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 600),
+        let window = ProjectProfilesWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 640),
             styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "Guides Project Profiles"
         window.isReleasedWhenClosed = false
@@ -51,57 +51,48 @@ private struct ProjectProfilesView: View {
     private var current: ProjectProfileContent? { try? ProjectProfileContent(preferences: preferences) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Project profiles").font(.title2.bold())
-            Text("Current settings: \(current?.summary ?? "unavailable")").font(.callout)
-            Text("Save the rem base and spacing tokens for a project on this Mac, then apply them when you switch projects. Applying replaces both current settings. Measurements, calibration and saved layouts stay as they are. Nothing applies automatically.")
-                .font(.callout).foregroundStyle(.secondary)
-            HStack {
-                TextField("New profile name", text: $name).textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("New profile name")
-                Button("Save Current") {
-                    perform {
-                        selectedID = try store.save(name: name, content: ProjectProfileContent(preferences: preferences))
-                        name = ""
-                    }
-                }.disabled(store.storageError != nil)
+        VStack(alignment: .leading, spacing: 14) {
+            ToolHeader(symbol: "folder", title: "Project profiles",
+                subtitle: "Save the rem base and spacing tokens for a project, then apply them when you switch projects.")
+            ToolCard("Current settings") {
+                Text(current?.summary ?? "unavailable").font(.callout.monospacedDigit())
+                HStack {
+                    TextField("New profile name", text: $name).textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("New profile name")
+                    Button("Save Current") {
+                        perform {
+                            selectedID = try store.save(name: name, content: ProjectProfileContent(preferences: preferences))
+                            name = ""
+                        }
+                    }.disabled(store.storageError != nil)
+                }
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
-                    if store.profiles.isEmpty { Text("No project profiles yet.").foregroundStyle(.secondary).padding() }
+                    if store.profiles.isEmpty {
+                        ToolEmptyState(symbol: "folder.badge.plus", title: "No project profiles yet",
+                            message: "Name the current settings above, then choose Save Current.")
+                    }
                     ForEach(store.profiles) { profile in
                         let summary = profile.content.summary + (profile.content == current ? " · matches current settings" : "")
                         Button { selectedID = profile.id } label: {
-                            HStack(alignment: .top) {
-                                Image(systemName: selectedID == profile.id ? "checkmark.circle.fill" : "circle")
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(profile.name).fontWeight(.semibold)
-                                    Text(summary).font(.caption).foregroundStyle(.secondary)
-                                }
-                                Spacer(minLength: 0)
-                            }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
-                                .background(selectedID == profile.id ? Color.accentColor.opacity(0.12) : Color.clear,
-                                            in: RoundedRectangle(cornerRadius: 6))
-                                .contentShape(Rectangle())
+                            ToolListRow(title: profile.name, detail: summary, selected: selectedID == profile.id)
                         }.buttonStyle(.plain).accessibilityLabel("Select profile \(profile.name)")
                             .accessibilityValue(summary)
                             .accessibilityAddTraits(selectedID == profile.id ? [.isSelected] : [])
                     }
-                }
-            }.frame(maxWidth: .infinity, maxHeight: .infinity).border(.secondary.opacity(0.25))
+                }.padding(6)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 10))
             HStack {
                 TextField("Selected profile name", text: $rename).textFieldStyle(.roundedBorder)
                     .accessibilityLabel("Selected profile name")
                 Button("Rename") { if let selectedID { perform { try store.rename(selectedID, to: rename) } } }
                 Button("Delete") { if let selectedID { perform { try store.delete(selectedID); self.selectedID = nil } } }
-            }.disabled(selected == nil || store.storageError != nil)
-            HStack {
-                Button("Undo Delete") { perform { selectedID = try store.undoDelete() } }.disabled(!store.canUndoDelete)
-                Spacer()
                 Button("Apply Profile") { if let selectedID { perform { try store.apply(selectedID, to: preferences) } } }
                     .buttonStyle(.borderedProminent)
-                    .disabled(selected == nil || selected?.content == current)
-            }
+                    .disabled(selected?.content == current)
+            }.disabled(selected == nil || store.storageError != nil)
             if let storageError = store.storageError {
                 HStack(alignment: .top) {
                     Text(storageError).font(.caption).foregroundStyle(.red)
@@ -109,14 +100,16 @@ private struct ProjectProfilesView: View {
                 }
             }
             if let error { Text(error).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
+            ToolNote("Applying replaces both current settings. Measurements, calibration and saved layouts stay as they are. Profiles stay on this Mac and nothing applies automatically.")
             Divider()
             HStack {
+                Button("Undo Delete") { perform { selectedID = try store.undoDelete() } }.disabled(!store.canUndoDelete)
                 Button("Undo Apply") { perform { try store.undoApply(to: preferences) } }.disabled(!store.canUndoApply)
                     .help("Restore the rem base and spacing tokens from before the latest apply, replacing any edits made to them since.")
                 Spacer()
                 Button("Close", action: close).keyboardShortcut(.cancelAction)
             }
-        }.padding(20)
+        }.toolWindow()
             .onChange(of: selectedID) { _, _ in rename = selected?.name ?? ""; error = nil }
     }
 

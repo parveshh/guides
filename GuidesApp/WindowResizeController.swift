@@ -111,71 +111,72 @@ private struct WindowResizeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Resize a window").font(.title2.bold())
-                Text("Set the whole window size in macOS screen points. Browser toolbars and borders are included; this does not set the page’s CSS viewport or your monitor’s pixel resolution.")
-                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 14) {
+                ToolHeader(symbol: "macwindow", title: "Resize a window",
+                    subtitle: "Set the whole window size in macOS screen points, including browser toolbars and borders.")
                 if !controls.hasAccess {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Accessibility access is optional").font(.headline)
+                    ToolCard("Accessibility access is optional") {
                         Text("Window resizing needs permission to control other apps. Guides and image inspection work without it. Enable Guides in System Settings → Privacy & Security → Accessibility, then check access.")
                             .font(.callout).fixedSize(horizontal: false, vertical: true)
                         HStack {
-                            Button("Request Accessibility Access", action: requestAccess)
+                            Button("Request Accessibility Access", action: requestAccess).buttonStyle(.borderedProminent)
                             Button("Check Access", action: checkAccess)
                         }
-                    }.padding(12).background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
-                } else {
+                    }
+                }
+                ToolCard("Window") {
                     HStack {
-                        Text("Accessibility access enabled").font(.caption).foregroundStyle(.secondary)
-                        Spacer()
-                        Button("Check Access", action: checkAccess).disabled(model.isBusy)
-                    }
-                }
-                HStack {
-                    Picker("App", selection: Binding(get: { controls.selectedProcess }, set: { controls.selectedProcess = $0; model.clear() })) {
-                        Text("Choose an app").tag(nil as Int32?)
-                        ForEach(controls.applications) { app in Text(app.name).tag(Optional(app.id)) }
-                    }
-                    Button("Refresh Apps", action: refresh)
-                }.disabled(model.isBusy)
-                Button("Use App’s Front Window", action: capture)
-                    .disabled(!controls.hasAccess || model.isBusy || controls.selectedProcess == nil)
-                if let target = model.target {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("\(target.applicationName) · \(target.title)").font(.headline).lineLimit(2).help(target.title)
-                        Text(model.frameIsKnown ? "Last read: \(WindowSizeRequest.text(target.frame.size))" : "Actual size unavailable")
-                            .font(.system(.body, design: .monospaced))
-                    }
-                } else {
-                    Text("Choose a window before resizing. Switching apps does not retarget an already selected window.")
-                        .font(.callout).foregroundStyle(.secondary)
-                }
-                Divider()
-                HStack(alignment: .bottom, spacing: 12) {
-                    dimension("Width", text: $model.width)
-                    Text("×").padding(.bottom, 5)
-                    dimension("Height", text: $model.height)
-                    Menu("Presets") {
-                        ForEach([CGSize(width: 1280, height: 720), CGSize(width: 1440, height: 900),
-                                 CGSize(width: 1920, height: 1080), CGSize(width: 2560, height: 1440)], id: \.width) { size in
-                            Button("\(Int(size.width)) × \(Int(size.height))") {
-                                model.width = String(Int(size.width)); model.height = String(Int(size.height))
-                            }
+                        Picker("App", selection: Binding(get: { controls.selectedProcess }, set: { controls.selectedProcess = $0; model.clear() })) {
+                            Text("Choose an app").tag(nil as Int32?)
+                            ForEach(controls.applications) { app in Text(app.name).tag(Optional(app.id)) }
                         }
-                    }.frame(width: 110).padding(.bottom, 2)
-                }.disabled(model.isBusy)
-                HStack {
-                    Button("Resize Window") { model.resize() }.buttonStyle(.borderedProminent)
-                        .disabled(!controls.hasAccess || model.target == nil || model.isBusy)
-                    Button("Restore Previous Frame") { model.restore() }
-                        .disabled(!controls.hasAccess || !model.canRestore || model.isBusy)
-                    if model.isBusy { ProgressView().controlSize(.small) }
+                        Button("Refresh Apps", action: refresh)
+                    }.disabled(model.isBusy)
+                    Button("Use App’s Front Window", action: capture)
+                        .disabled(!controls.hasAccess || model.isBusy || controls.selectedProcess == nil)
+                    if let target = model.target {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("\(target.applicationName) · \(target.title)").font(.headline).lineLimit(2).help(target.title)
+                            Text(model.frameIsKnown ? "Last read: \(WindowSizeRequest.text(target.frame.size))" : "Actual size unavailable")
+                                .font(.body.monospacedDigit())
+                        }
+                    } else {
+                        Text("Choose a window before resizing. Switching apps does not retarget an already selected window.")
+                            .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                if let message = model.message { Text(message).font(.callout).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) }
-                Text("Apps may enforce minimum sizes or limit windows to the display. Guides reads back the accepted size. For an exact website viewport, use your browser’s responsive design tools.")
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }.padding(20)
+                ToolCard("Size") {
+                    HStack(alignment: .bottom, spacing: 12) {
+                        dimension("Width", text: $model.width)
+                        Text("×").padding(.bottom, 5)
+                        dimension("Height", text: $model.height)
+                        Menu("Presets") {
+                            ForEach([CGSize(width: 1280, height: 720), CGSize(width: 1440, height: 900),
+                                     CGSize(width: 1920, height: 1080), CGSize(width: 2560, height: 1440)], id: \.width) { size in
+                                Button("\(Int(size.width)) × \(Int(size.height))") {
+                                    model.width = String(Int(size.width)); model.height = String(Int(size.height))
+                                }
+                            }
+                        }.frame(width: 110).padding(.bottom, 2)
+                    }.disabled(model.isBusy)
+                    HStack {
+                        Button("Resize Window") { model.resize() }.buttonStyle(.borderedProminent)
+                            .disabled(!controls.hasAccess || model.target == nil || model.isBusy)
+                        Button("Restore Previous Frame") { model.restore() }
+                            .disabled(!controls.hasAccess || !model.canRestore || model.isBusy)
+                        if model.isBusy { ProgressView().controlSize(.small) }
+                    }
+                    if let message = model.message { Text(message).font(.callout).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) }
+                }
+                if controls.hasAccess {
+                    HStack {
+                        Label("Accessibility access enabled", systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Check Access", action: checkAccess).controlSize(.small).disabled(model.isBusy)
+                    }
+                }
+                ToolNote("This does not set the page’s CSS viewport or your monitor’s pixel resolution. Apps may enforce minimum sizes or limit windows to the display; Guides reads back the accepted size. For an exact website viewport, use your browser’s responsive design tools.")
+            }.toolWindow()
         }
     }
 

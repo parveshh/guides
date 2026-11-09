@@ -11,7 +11,7 @@ final class SpacingTokensController {
             NSApp.activate(); window.makeKeyAndOrderFront(nil)
             return
         }
-        let window = SpacingTokensWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 570),
+        let window = SpacingTokensWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 640),
             styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "Guides Spacing Tokens"
         window.isReleasedWhenClosed = false
@@ -54,37 +54,43 @@ private struct SpacingTokensView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Spacing tokens").font(.title2.bold())
-            Text("Compare manual, calibrated measurements with your own spacing scale. These are suggestions, not inspected CSS properties.")
-                .font(.callout).foregroundStyle(.secondary)
-            Text("One token per line, for example: --space-2: 8px;").font(.callout)
-            TextEditor(text: $source)
-                .font(.system(.body, design: .monospaced))
-                .border(.secondary.opacity(0.4))
-                .accessibilityLabel("Spacing token declarations")
-                .frame(minHeight: 140)
-            HStack {
-                Button("Use Example") { source = SpacingScale.example; error = nil }
-                Button("Clear Draft") { source = ""; error = nil }
-                Spacer()
-                Text("Up to 64 tokens · px values only").font(.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 14) {
+            ToolHeader(symbol: "list.bullet.rectangle", title: "Spacing tokens",
+                subtitle: "Compare manual, calibrated measurements with your own spacing scale.")
+            ToolCard("Scale") {
+                Text("One token per line, for example: --space-2: 8px;").font(.callout)
+                TextEditor(text: $source)
+                    .font(.system(.body, design: .monospaced))
+                    .scrollContentBackground(.hidden).padding(6)
+                    .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.secondary.opacity(0.3)))
+                    .accessibilityLabel("Spacing token declarations")
+                    .frame(minHeight: 140)
+                HStack {
+                    Button("Use Example") { source = SpacingScale.example; error = nil }
+                    Button("Clear Draft") { source = ""; error = nil }
+                    Spacer()
+                    Text("Up to 64 tokens · px values only").font(.caption).foregroundStyle(.secondary)
+                }
             }
-            HStack {
-                Text("Match tolerance (design px)")
-                TextField("Tolerance", text: $tolerance).textFieldStyle(.roundedBorder).frame(width: 80)
-                    .accessibilityLabel("Match tolerance in design pixels")
+            ToolCard("Matching") {
+                HStack {
+                    Text("Match tolerance (design px)")
+                    TextField("Tolerance", text: $tolerance).textFieldStyle(.roundedBorder).frame(width: 80)
+                        .accessibilityLabel("Match tolerance in design pixels")
+                }
+                Text("0 requires an exact match; maximum 100. Equal nearest matches are ambiguous. Copy Variable is available only for a unique match within tolerance.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
-            Text("0 requires an exact match; maximum 100. Equal nearest matches are ambiguous. Copy Variable is available only for a unique match within tolerance. The scale is saved on this Mac.")
-                .font(.caption).foregroundStyle(.secondary)
             if let error { Text(error).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
+            ToolNote("These are suggestions, not inspected CSS properties. The scale is saved on this Mac.")
             HStack {
                 Button("Cancel", action: cancel).keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("Save Scale", action: apply).keyboardShortcut("s", modifiers: .command)
                     .buttonStyle(.borderedProminent)
             }
-        }.padding(20)
+        }.toolWindow()
     }
 
     private func apply() {

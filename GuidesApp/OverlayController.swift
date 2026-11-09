@@ -1,5 +1,6 @@
 import AppKit
 import GuidesCore
+import KeyboardShortcuts
 import Observation
 import SwiftUI
 import UniformTypeIdentifiers
@@ -18,6 +19,7 @@ final class EditorModel {
     var unit: MeasurementUnit = .screenPoints
     var backingFactor: CGFloat = 1
     var controlsCompact = false
+    var activationShortcut = ""
     var displayID: UInt32?
     var rulerAppearance: RulerAppearance = .solid
     var spacingScale: SpacingScale = .empty
@@ -96,6 +98,16 @@ final class OverlayPanel: NSPanel {
     }
 }
 
+/// Reports when SwiftUI changes the toolbar's ideal size.
+@MainActor
+final class ToolbarHostingView: NSHostingView<OverlayControls> {
+    var onIntrinsicSizeChange: (() -> Void)?
+    override func invalidateIntrinsicContentSize() {
+        super.invalidateIntrinsicContentSize()
+        onIntrinsicSizeChange?()
+    }
+}
+
 @MainActor
 final class OverlayController {
     let model = EditorModel()
@@ -108,7 +120,8 @@ final class OverlayController {
     private var layoutRecovery = LayoutLoadRecovery()
     private var panel: OverlayPanel?
     private var canvas: OverlayCanvas?
-    private var controls: NSHostingView<OverlayControls>?
+    private var controls: ToolbarHostingView?
+    private var controlsWidthCheckPending = false
     private var readout: NSHostingView<MeasurementReadout>?
     private var previousApplication: NSRunningApplication?
     private var sessions = DisplaySessions()
@@ -159,6 +172,7 @@ final class OverlayController {
             previousApplication = frontmost
         }
         model.presentation.edit(tool)
+        updateActivationShortcut()
         model.document = session.document
         model.history = session.history
         model.calibration = session.calibration
@@ -178,6 +192,10 @@ final class OverlayController {
         panel?.makeFirstResponder(canvas)
     }
 
+    private func updateActivationShortcut() {
+        model.activationShortcut = KeyboardShortcuts.getShortcut(for: .editGuides)?.description ?? ""
+    }
+
     func toggleEditing() {
         if model.presentation.mode == .editing { pin() }
         else { edit(model.presentation.tool) }
@@ -195,6 +213,7 @@ final class OverlayController {
         canvas?.cancelGesture()
         model.aligningReference = false
         model.presentation.pin()
+        updateActivationShortcut()
         panel?.orderOut(nil)
         panel?.editing = false
         panel?.ignoresMouseEvents = true
@@ -318,12 +337,40 @@ final class OverlayController {
         let usable = DisplayGeometry(frame: screen.frame).localRect(fromGlobal: screen.visibleFrame)
         canvas?.usableRect = usable
         model.backingFactor = screen.guidesConfiguration?.backingFactor ?? 1
-        model.controlsCompact = usable.width < 1000
-        controlsWidth?.constant = max(240, min(1000, usable.width - 32))
-        controlsHeight?.constant = (model.controlsCompact ? 106 : 66) + (model.isAnnotating ? (model.controlsCompact ? 80 : 42) : 0)
+        // The single-row toolbar needs about 1082 points; narrower displays use a second row.
+        model.controlsCompact = usable.width < 1120
+        updateControlsWidth()
+        controlsHeight?.constant = (model.controlsCompact ? 114 : 70) + (model.isAnnotating ? (model.controlsCompact ? 84 : 44) : 0)
         controlsTop?.constant = usable.minY + 32
         panel?.contentView?.layoutSubtreeIfNeeded()
         if let controls, let canvas { canvas.controlsRect = canvas.convert(controls.bounds, from: controls) }
+    }
+
+    /// The toolbar hugs its content, so its hit area and the rect other layout avoids match what is drawn.
+    private func updateControlsWidth() {
+        guard let width = controlsTargetWidth else { return }
+        controlsWidth?.constant = width
+    }
+
+    private var controlsTargetWidth: CGFloat? {
+        guard let controls, let canvas else { return nil }
+        let available = max(240, canvas.usableRect.width - 32)
+        let content = ceil(controls.intrinsicContentSize.width)
+        return model.controlsCompact || content <= 0 ? available : min(available, max(240, content))
+    }
+
+    /// SwiftUI publishes a new ideal size one turn after the model changes, for example when a
+    /// display change switches between the one-row and two-row toolbar. Lay out again only if it matters.
+    private func controlsContentSizeChanged() {
+        guard !controlsWidthCheckPending else { return }
+        controlsWidthCheckPending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.controlsWidthCheckPending = false
+            guard let target = self.controlsTargetWidth, let current = self.controlsWidth?.constant,
+                  abs(target - current) >= 1 else { return }
+            self.refresh()
+        }
     }
 
     private func restoreFocusIfNeeded() {
@@ -358,7 +405,7 @@ final class OverlayController {
         canvas.onRedo = { [weak self] in self?.redo() }
         panel.onCommand = { [weak canvas] event in canvas?.handleCommand(event) ?? false }
         root.addSubview(canvas)
-        let controls = NSHostingView(rootView: OverlayControls(model: model,
+        let controls = ToolbarHostingView(rootView: OverlayControls(model: model,
             onRulerAppearance: { [weak self] in self?.preferences.setRulerAppearance($0) },
             onInspectImage: onInspectImage, onResizeWindow: onResizeWindow, onSpacingTokens: onSpacingTokens, onSavedLayouts: onSavedLayouts,
             onProjectProfiles: onProjectProfiles,
@@ -406,10 +453,12 @@ final class OverlayController {
             onUndo: { [weak self] in self?.undo() }, onRedo: { [weak self] in self?.redo() },
             onPin: { [weak self] in self?.pin() }, onHide: { [weak self] in self?.hide() }))
         controls.translatesAutoresizingMaskIntoConstraints = false
-        controls.sizingOptions = []
+        // Reports the content's ideal size for updateControlsWidth; the explicit constraints still decide the frame.
+        controls.sizingOptions = [.intrinsicContentSize]
+        controls.onIntrinsicSizeChange = { [weak self] in self?.controlsContentSizeChanged() }
         root.addSubview(controls)
         controlsWidth = controls.widthAnchor.constraint(equalToConstant: 1000)
-        controlsHeight = controls.heightAnchor.constraint(equalToConstant: 66)
+        controlsHeight = controls.heightAnchor.constraint(equalToConstant: 70)
         controlsTop = controls.topAnchor.constraint(equalTo: root.topAnchor, constant: 40)
         controlsCenterX = controls.centerXAnchor.constraint(equalTo: root.centerXAnchor)
         NSLayoutConstraint.activate([
@@ -537,9 +586,10 @@ final class OverlayController {
             } catch { model.gridStatus = "Grid paused · " + error.localizedDescription }
         }
         controls?.isHidden = model.presentation.mode != .editing
-        controlsHeight?.constant = (model.controlsCompact ? 106 : 66) + (model.isAnnotating ? (model.controlsCompact ? 80 : 42) : 0)
+        updateControlsWidth()
+        controlsHeight?.constant = (model.controlsCompact ? 114 : 70) + (model.isAnnotating ? (model.controlsCompact ? 84 : 44) : 0)
         if let canvas, let root = panel?.contentView, !model.annotations.isDragging {
-            let height = controlsHeight?.constant ?? 66, width = controlsWidth?.constant ?? 1000
+            let height = controlsHeight?.constant ?? 70, width = controlsWidth?.constant ?? 1000
             let preferred = CGRect(x: canvas.usableRect.midX - width / 2, y: canvas.usableRect.minY + 32, width: width, height: height)
             let frame = AnnotationGeometry.toolbarFrame(preferred: preferred, usable: canvas.usableRect,
                 spotlight: model.annotations.document.spotlight)
@@ -567,12 +617,12 @@ final class OverlayController {
         if let area { anchor = CGPoint(x: area.midX, y: area.midY) }
         else if let gap { anchor = MeasurementReadoutLayout.gapAnchor(gap, usable: canvas.usableRect, toolbar: canvas.controlsRect) }
         else { return }
-        let valueWidth = (model.selectedText as NSString).size(withAttributes: [.font: NSFont.monospacedSystemFont(ofSize: 16, weight: .semibold)]).width
+        let valueWidth = (model.selectedText as NSString).size(withAttributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 17, weight: .semibold)]).width
         let contextWidth = (model.contextText as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11)]).width
         let radius = area != nil && model.areaDimension == .radius
         let hasTokens = !model.spacingScale.tokens.isEmpty && !radius
         let size = CGSize(width: min(460, max(hasTokens ? 420 : (radius ? 400 : 300), max(valueWidth, contextWidth) + 140)),
-            height: (area == nil ? 76 : 115) + (hasTokens ? 100 : 0) + (radius ? 146 : 0))
+            height: (area == nil ? 80 : 124) + (hasTokens ? 100 : 0) + (radius ? 146 : 0))
         let frame = MeasurementReadoutLayout.frame(size: size, anchor: anchor, beside: gap?.axis == .horizontal,
             usable: canvas.usableRect, toolbar: canvas.controlsRect, area: area)
         readout.frame = canvas.convert(frame, to: root)
@@ -588,3 +638,28 @@ private extension NSScreen {
             backingFactor: convertRectToBacking(CGRect(origin: frame.origin, size: CGSize(width: 1, height: 1))).width)
     }
 }
+
+#if DEBUG
+extension OverlayController {
+    /// Prints the toolbar's hit area against its content width, without triggering layout.
+    func designReportToolbar(_ name: String) {
+        guard let controls, !controls.isHidden else { return }
+        print("design-snapshot \(name): toolbar host \(controls.frame.width) pt, content \(controls.intrinsicContentSize.width) pt, compact \(model.controlsCompact)")
+    }
+
+
+    /// Renders this app's own overlay views over a synthetic backdrop for design review. Nothing on screen is captured.
+    func designSnapshot(_ name: String, to directory: URL, configure: (EditorModel) -> Void) {
+        configure(model)
+        refresh()
+        guard let root = panel?.contentView else { return }
+        designReportToolbar(name)
+        DesignSnapshots.write(root, name: name, to: directory, crop: CGSize(width: 1320, height: 760), backdrop: true)
+        // The toolbar and hint bar are centred on the display, outside the top-left crop.
+        DesignSnapshots.write(root, name: name + "-toolbar", to: directory,
+            origin: CGPoint(x: root.bounds.midX - 560, y: 0), crop: CGSize(width: 1120, height: 240), backdrop: true)
+        DesignSnapshots.write(root, name: name + "-hints", to: directory,
+            origin: CGPoint(x: root.bounds.midX - 560, y: root.bounds.height - 260), crop: CGSize(width: 1120, height: 260), backdrop: true)
+    }
+}
+#endif

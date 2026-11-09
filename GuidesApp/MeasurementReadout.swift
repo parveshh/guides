@@ -13,13 +13,15 @@ struct MeasurementReadout: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             if model.document.isAreaSelected {
-                HStack(spacing: 3) {
-                    ForEach(AreaDimension.allCases, id: \.self) { dimension in
-                        Button(dimension.rawValue) { onDimension(dimension) }
-                            .buttonStyle(RailButtonStyle(selected: model.areaDimension == dimension))
-                            .accessibilityAddTraits(model.areaDimension == dimension ? [.isSelected] : [])
-                            .accessibilityLabel("Select \(dimension.rawValue.lowercased())")
-                    }
+                HStack(spacing: 0) {
+                    HStack(spacing: 2) {
+                        ForEach(AreaDimension.allCases, id: \.self) { dimension in
+                            Button(dimension.rawValue) { onDimension(dimension) }
+                                .buttonStyle(RailButtonStyle(selected: model.areaDimension == dimension))
+                                .accessibilityAddTraits(model.areaDimension == dimension ? [.isSelected] : [])
+                                .accessibilityLabel("Select \(dimension.rawValue.lowercased())")
+                        }
+                    }.modifier(RailSegments())
                     Spacer(minLength: 0)
                 }
             }
@@ -38,21 +40,21 @@ struct MeasurementReadout: View {
             }
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(model.contextText).font(.system(size: 11)).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
-                    Text(model.selectedText).font(.system(size: 16, weight: .semibold, design: .monospaced))
+                    Text(model.contextText).font(.system(size: 11)).foregroundStyle(OverlayStyle.secondaryText).lineLimit(1)
+                    Text(model.selectedText).font(.system(size: 17, weight: .semibold).monospacedDigit())
                         .lineLimit(1).truncationMode(.middle).help(model.selectedText)
                 }
                 Spacer(minLength: 0)
-                Rectangle().fill(.white.opacity(0.15)).frame(width: 1, height: 30)
+                Rectangle().fill(OverlayStyle.hairline).frame(width: 1, height: 30)
                 Button("Copy", systemImage: "doc.on.doc", action: onCopy)
                     .buttonStyle(RailButtonStyle(filled: true)).fixedSize()
                     .help("Copy selected measurement (Command-C)")
             }
             if !model.spacingScale.tokens.isEmpty && !(model.document.isAreaSelected && model.areaDimension == .radius) {
-                Divider().overlay(.white.opacity(0.15))
+                Divider().overlay(OverlayStyle.hairline)
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text("Spacing suggestion").font(.system(size: 11)).foregroundStyle(.white.opacity(0.7))
+                        Text("Spacing suggestion").font(.system(size: 11)).foregroundStyle(OverlayStyle.secondaryText)
                         Spacer()
                         Button("Copy Variable", action: onCopyVariable)
                             .buttonStyle(RailButtonStyle(filled: true))

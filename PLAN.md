@@ -17,7 +17,7 @@ Success: after learning the controls, measure and copy a typical gap within ten 
 
 ## MVP interface and stories
 
-Launch into the menu bar without a dashboard or Dock icon. Menu: Edit Guides (initial shortcut Control-Option-G), Measure Area, Hide Measurements, Clear Measurements (current display), Settings, Quit. Editing shows thin top/left rulers and a compact floating strip with Guides/Area, unit, scale/calibration, a separate selected-value/Copy readout, Pin & work, and Hide. Settings contain the activation shortcut, default rem base (16px), and Solid/Transparent ruler backgrounds. The toolbar's ruler icon also opens the background choice.
+Launch into the menu bar without a dashboard or Dock icon. Menu: Edit Guides (initial shortcut Control-Option-G), Measure Area, Hide Measurements, Clear Measurements (current display), Settings, Quit. Editing shows thin top/left rulers and a compact floating strip with Guides/Area, unit, scale/calibration, a separate selected-value/Copy readout, Pin & work, and Hide. Settings contain the activation shortcut, default rem base (16px), and Solid/Transparent ruler backgrounds. The toolbar's Tools menu also opens the background choice.
 
 | ID | Story | Acceptance |
 | --- | --- | --- |
@@ -35,7 +35,7 @@ Interaction defaults:
 - Arrows move one screen point; Shift moves ten; Option moves one backing pixel.
 - Escape cancels the unfinished gesture or otherwise hides the overlay.
 - Click a measurement to select it and expose Copy. Pinned mode retains a noninteractive scale badge.
-- Both rulers show screen-point coordinates every 100 points. Vertical numbers rotate to fit the narrow ruler. Solid is the default background; Transparent leaves only outlined numbers and ticks. This shared appearance preference applies immediately to both rulers and persists across launches.
+- Both rulers show screen-point coordinates every 100 points. Vertical numbers rotate to fit the narrow ruler. Solid is the default background; Transparent removes it and keeps each number on its own dark chip with haloed ticks. This shared appearance preference applies immediately to both rulers and persists across launches.
 - Opaque label backgrounds and contrasting outlines work without sampling the screen. Prioritize selected labels when crowded and keep the selected value in its nearby readout.
 - Activating another display hides the old overlay and opens that display's independent in-memory session. Measurements never cross displays.
 
@@ -357,6 +357,22 @@ Save the settings that differ between projects under a name and apply them expli
 Implementation: `ProjectProfileContent` and `ProjectProfilesStore` in GuidesCore follow the saved-layout store pattern and reuse its name rules. Content is validated through the existing `SpacingScale` parser and the positive-finite rem-base rule before it can reach preferences. A dedicated AppKit/SwiftUI window reuses the shared text commands. The Spacing Tokens editor and Project Profiles close each other when opened, so a stale token draft cannot overwrite an applied profile; an unsaved token draft is discarded as it is on Cancel. No new permission, capture, network use, import/export or sync is added. Later Group A slices (breakpoints, device presets, column grid) add their settings to the profile with an archive version bump.
 
 Validation: 109 core tests pass, including six new profile tests for content round-trip and invalid rem bases, library save/rename/delete/undo across fresh stores, apply and undo with preference notifications, retained corrupt/future/oversized libraries, all-or-nothing archive validation and failed writes. The native Debug build passes and the rebuilt app launches. Native interaction with the new window is unverified: the unindexed development build could not be driven by the available automation, so the manual checks are listed in TESTING.md. Commit gate: clean independent review of the exact staged diff.
+
+### Visual overhaul before A2
+
+The user asked for a visual overhaul that looks great and is easy to understand, and reported that ruler numbers were unreadable with the Transparent ruler background. This is a presentation-only change: geometry, units, calibration, copy output, persistence, permissions and keyboard behavior are unchanged, and the confirmed charcoal/pink direction from [focus-rail.png](docs/design/focus-rail.png) is kept.
+
+| ID | Change | Acceptance |
+| --- | --- | --- |
+| V01 | Readable transparent rulers. | With no ruler background, every 100-point number sits on its own opaque dark chip and ticks use a dark core over a light halo. Numbers and ticks read over light, mid-tone and dark content without sampling the screen. Solid rulers keep dark numbers on a light strip, with shorter minor ticks and a mid tick every 50 points. |
+| V02 | Visible guides and labels. | Guides, gap connectors and the Area outline draw a 1-screen-point pink core (2 when selected) over a soft dark halo, replacing a hairline inside a heavy black outline. Positions and hit targets are unchanged. Labels use one chip style with proportional text and tabular digits; the selected label is filled pink. Area handles are round, white with a pink edge. |
+| V03 | Self-explanatory toolbar. | The tools menu is labelled Tools; Guides, Area and Annotate and the annotation tools carry icons and sit on segmented tracks; controls show hover and pressed states and have tooltips. Pin & work is visually emphasised. The single-row toolbar now hugs its content (1082 points measured) instead of filling a fixed 1000-point bar, so its hit area matches what is drawn; displays with less than 1120 points of usable width use the two-row layout. Heights grow by 4–12 points for the segmented tracks. Placement rules are unchanged. |
+| V04 | Scannable hints. | The long status sentence becomes a hint bar that names the current mode and shows key caps with short actions, including the user's actual activation shortcut. On narrow displays the editing-key hints are dropped first; the mode name, the pin hint and Escape stay, and the mode name truncates last. Pinned mode shows a short pinned summary. |
+| V05 | Consistent tool windows. | Settings, Spacing Tokens, Project Profiles, Saved Layouts, Resize Window and Inspect Image share a header (icon, title, one-line purpose), grouped cards, empty states and a quiet caveat note. Every existing control, label, accessibility label, limit and caveat is retained. The menu bar menu gains Measure/Tools section headers and icons. |
+
+Implementation: shared tokens and button styles in `OverlayStyle.swift`, `ToolWindowStyle.swift` for window scaffolding, and `OverlayCanvas+Hints.swift` for the hint bar. `KeyboardShortcuts.Shortcut.description`, verified in the pinned 3.0.1 package source, supplies the shortcut text. The toolbar's hosting view reports its intrinsic content size so the controller can size the bar to its content, and notifies the controller when SwiftUI publishes a new ideal size a turn after a layout switch. A DEBUG-only `--design-snapshots <directory>` launch argument renders the app's own overlay and tool-window views through AppKit's display cache over a synthetic light/mid/dark backdrop, then quits. It captures nothing from the screen, needs no permission and is compiled out of Release builds.
+
+Validation: 109 core tests and the native Debug build pass. Snapshot renders before and after the change confirm V01–V05 on the current display, and the snapshot run reports matching toolbar host and content widths (1082 points); reference renders are saved in `docs/design/overhaul/`. Snapshots do not exercise popovers, menus, hover, real pointer input, compact displays or VoiceOver; those remain manual checks in TESTING.md. Commit gate: clean independent review of the exact staged diff.
 
 Earlier staging, retained for context:
 

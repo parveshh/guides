@@ -1,25 +1,57 @@
 import AppKit
 import SwiftUI
 
+/// Shared visual tokens for the overlay: one charcoal surface, one pink accent, one label style.
+@MainActor
 enum OverlayStyle {
-    static let surface = Color(red: 0.16, green: 0.16, blue: 0.17)
+    static let surface = Color(red: 0.12, green: 0.12, blue: 0.135)
     static let accent = Color(red: 1, green: 0.08, blue: 0.53)
+    static let secondaryText = Color.white.opacity(0.64)
+    static let hairline = Color.white.opacity(0.12)
+    static let controlFill = Color.white.opacity(0.09)
+    static let controlRadius: CGFloat = 7
+    static let panelRadius: CGFloat = 14
+
     static let guide = NSColor(srgbRed: 1, green: 0.08, blue: 0.53, alpha: 1)
+    /// Opaque enough to stay readable over any desktop content without sampling the screen.
+    static let chip = NSColor(srgbRed: 0.1, green: 0.1, blue: 0.115, alpha: 0.96)
+    static let chipBorder = NSColor(white: 1, alpha: 0.22)
+    static let halo = NSColor(white: 0, alpha: 0.45)
+    static let labelFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
+    static let rulerFont = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
 }
 
 struct RailButtonStyle: ButtonStyle {
     var selected = false
     var filled = false
-    @Environment(\.isEnabled) private var enabled
 
     func makeBody(configuration: Configuration) -> some View {
+        RailButtonBody(configuration: configuration, selected: selected, filled: filled)
+    }
+}
+
+private struct RailButtonBody: View {
+    let configuration: ButtonStyle.Configuration
+    let selected: Bool
+    let filled: Bool
+    @Environment(\.isEnabled) private var enabled
+    @State private var hovering = false
+
+    private var fill: Color {
+        if selected { return OverlayStyle.accent.opacity(configuration.isPressed ? 0.8 : 1) }
+        if configuration.isPressed { return .white.opacity(0.2) }
+        if hovering && enabled { return .white.opacity(0.14) }
+        return filled ? OverlayStyle.controlFill : .clear
+    }
+
+    var body: some View {
         configuration.label
-            .font(.system(size: 13, weight: .medium))
+            .font(.system(size: 13, weight: selected ? .semibold : .medium))
             .foregroundStyle(.white.opacity(enabled ? 1 : 0.35))
             .padding(.horizontal, 10).frame(height: 30)
-            .background(selected ? OverlayStyle.accent : Color.white.opacity(configuration.isPressed ? 0.18 : (filled ? 0.08 : 0)),
-                        in: RoundedRectangle(cornerRadius: 6))
-            .contentShape(RoundedRectangle(cornerRadius: 6))
+            .background(fill, in: RoundedRectangle(cornerRadius: OverlayStyle.controlRadius))
+            .contentShape(RoundedRectangle(cornerRadius: OverlayStyle.controlRadius))
+            .onHover { hovering = $0 }
     }
 }
 
@@ -27,9 +59,16 @@ struct OverlaySurface: ViewModifier {
     func body(content: Content) -> some View {
         content
             .foregroundStyle(.white)
-            .background(OverlayStyle.surface, in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.1), lineWidth: 1))
-            .shadow(color: .black.opacity(0.22), radius: 7, x: 0, y: 3)
+            .background(OverlayStyle.surface, in: RoundedRectangle(cornerRadius: OverlayStyle.panelRadius))
+            .overlay(RoundedRectangle(cornerRadius: OverlayStyle.panelRadius).stroke(OverlayStyle.hairline, lineWidth: 1))
+            .shadow(color: .black.opacity(0.3), radius: 12, x: 0, y: 5)
             .environment(\.colorScheme, .dark)
+    }
+}
+
+/// Groups mutually exclusive choices, such as tools or area dimensions, on one recessed track.
+struct RailSegments: ViewModifier {
+    func body(content: Content) -> some View {
+        content.padding(2).background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: OverlayStyle.controlRadius + 2))
     }
 }

@@ -13,11 +13,14 @@ struct AnnotationControls: View {
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                ForEach(AnnotationTool.allCases, id: \.self) { tool in
-                    Button(tool.rawValue) { onTool(tool) }
-                        .buttonStyle(RailButtonStyle(selected: model.annotations.tool == tool))
-                        .accessibilityLabel("Annotation \(tool.rawValue)")
-                }
+                HStack(spacing: 2) {
+                    ForEach(AnnotationTool.allCases, id: \.self) { tool in
+                        Button(tool.rawValue, systemImage: tool.symbol) { onTool(tool) }
+                            .buttonStyle(RailButtonStyle(selected: model.annotations.tool == tool))
+                            .accessibilityLabel("Annotation \(tool.rawValue)")
+                            .accessibilityAddTraits(model.annotations.tool == tool ? [.isSelected] : [])
+                    }
+                }.modifier(RailSegments())
                 if !model.controlsCompact { colorControls }
                 Spacer(minLength: 4)
                 optionsButton
@@ -38,7 +41,7 @@ struct AnnotationControls: View {
 
     private var colorControls: some View {
         HStack(spacing: 4) {
-            Text("Colour").font(.caption).foregroundStyle(.secondary)
+            Text("Colour").font(.system(size: 11)).foregroundStyle(OverlayStyle.secondaryText).padding(.leading, 6)
             ForEach(AnnotationColor.allCases, id: \.self) { color in
                 let selected = (model.annotations.document.selected?.style.color ?? model.annotations.style.color) == color
                 Button {
@@ -75,7 +78,8 @@ struct AnnotationControls: View {
     }
 
     private var optionsButton: some View {
-        Button("Style & spotlight…") { optionsPresented = true }
+        Button("Style & spotlight…", systemImage: "slider.horizontal.3") { optionsPresented = true }
+            .buttonStyle(RailButtonStyle(filled: true))
             .popover(isPresented: $optionsPresented) {
                 AnnotationOptions(session: model.annotations, onApply: { style, spotlight, opacity in
                     onStyle(style, spotlight, opacity); optionsPresented = false
@@ -85,10 +89,21 @@ struct AnnotationControls: View {
 
     private var deleteControls: some View {
         HStack(spacing: 8) {
-            Button("Delete", action: onDelete).disabled(model.annotations.document.selected == nil)
+            Button("Delete", systemImage: "trash", action: onDelete).disabled(model.annotations.document.selected == nil)
                 .accessibilityLabel("Delete selected annotation")
             Button("Clear", action: onClear).disabled(model.annotations.document.shapes.isEmpty)
                 .accessibilityLabel("Clear annotations").help("Clear annotations and spotlight; retain measurements")
+        }
+    }
+}
+
+private extension AnnotationTool {
+    var symbol: String {
+        switch self {
+        case .select: "cursorarrow"
+        case .arrow: "arrow.up.right"
+        case .line: "line.diagonal"
+        case .rectangle: "rectangle"
         }
     }
 }

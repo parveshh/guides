@@ -55,53 +55,44 @@ private struct SavedLayoutsView: View {
     private var selected: SavedLayout? { store.layouts.first { $0.id == selectedID } }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Saved layouts").font(.title2.bold())
-            Text("This display: \(MeasurementText.number(target.size.width)) × \(MeasurementText.number(target.size.height)) screen pt · \(MeasurementText.number(target.backingFactor))× backing")
-                .font(.callout)
-            Text("Save guides, Area, grid and annotations on this Mac. Loading replaces this display’s setup and requires Set scale again. Reference images and preferences stay as they are. Nothing loads automatically at launch.")
-                .font(.callout).foregroundStyle(.secondary)
-            HStack {
-                TextField("New layout name", text: $name).textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("New layout name")
-                Button("Save Current") { perform { selectedID = try store.save(name: name, content: capture()); name = "" } }
-                    .disabled(store.storageError != nil)
+        VStack(alignment: .leading, spacing: 14) {
+            ToolHeader(symbol: "square.stack", title: "Saved layouts",
+                subtitle: "Save this display’s guides, Area, grid and annotations on this Mac, and load them again later.")
+            ToolCard("This display") {
+                Text("\(MeasurementText.number(target.size.width)) × \(MeasurementText.number(target.size.height)) screen pt · \(MeasurementText.number(target.backingFactor))× backing")
+                    .font(.callout.monospacedDigit())
+                HStack {
+                    TextField("New layout name", text: $name).textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("New layout name")
+                    Button("Save Current") { perform { selectedID = try store.save(name: name, content: capture()); name = "" } }
+                        .disabled(store.storageError != nil)
+                }
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
-                    if store.layouts.isEmpty { Text("No saved layouts yet.").foregroundStyle(.secondary).padding() }
+                    if store.layouts.isEmpty {
+                        ToolEmptyState(symbol: "square.stack.3d.up.slash", title: "No saved layouts yet",
+                            message: "Name the current setup above, then choose Save Current.")
+                    }
                     ForEach(store.layouts) { layout in
                         Button { selectedID = layout.id } label: {
-                            HStack(alignment: .top) {
-                                Image(systemName: selectedID == layout.id ? "checkmark.circle.fill" : "circle")
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(layout.name).fontWeight(.semibold)
-                                    Text(layout.content.summary).font(.caption).foregroundStyle(.secondary)
-                                }
-                                Spacer(minLength: 0)
-                            }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
-                                .background(selectedID == layout.id ? Color.accentColor.opacity(0.12) : Color.clear,
-                                            in: RoundedRectangle(cornerRadius: 6))
-                                .contentShape(Rectangle())
+                            ToolListRow(title: layout.name, detail: layout.content.summary, selected: selectedID == layout.id)
                         }.buttonStyle(.plain).accessibilityLabel("Select layout \(layout.name)")
                             .accessibilityValue(layout.content.summary)
                             .accessibilityAddTraits(selectedID == layout.id ? [.isSelected] : [])
                     }
-                }
-            }.frame(maxWidth: .infinity, maxHeight: .infinity).border(.secondary.opacity(0.25))
+                }.padding(6)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 10))
             HStack {
                 TextField("Selected layout name", text: $rename).textFieldStyle(.roundedBorder)
                     .accessibilityLabel("Selected layout name")
                 Button("Rename") { if let selectedID { perform { try store.rename(selectedID, to: rename) } } }
                 Button("Delete") { if let selectedID { perform { try store.delete(selectedID); self.selectedID = nil } } }
-            }.disabled(selected == nil || store.storageError != nil)
-            HStack {
-                Button("Undo Delete") { perform { selectedID = try store.undoDelete() } }.disabled(!store.canUndoDelete)
-                Spacer()
                 Button("Load Layout") { if let selected { perform { try load(selected.content) } } }
                     .buttonStyle(.borderedProminent)
-                    .disabled(selected?.content.isCompatible(with: target) != true || store.storageError != nil)
-            }
+                    .disabled(selected?.content.isCompatible(with: target) != true)
+            }.disabled(selected == nil || store.storageError != nil)
             if let selected, !selected.content.isCompatible(with: target) {
                 Text("Load requires the saved screen-point size and backing factor. Layouts are never scaled to fit.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -113,14 +104,16 @@ private struct SavedLayoutsView: View {
                 }
             }
             if let error { Text(error).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
+            ToolNote("Loading replaces this display’s setup and requires Set scale again. Reference images and preferences stay as they are. Nothing loads automatically at launch.")
             Divider()
             HStack {
+                Button("Undo Delete") { perform { selectedID = try store.undoDelete() } }.disabled(!store.canUndoDelete)
                 Button("Undo Layout Load") { perform { try undoLoad() } }.disabled(!canUndoLoad())
                     .help("Replace the current setup with the setup before the latest load, including its calibration and tool history.")
                 Spacer()
                 Button("Close", action: close).keyboardShortcut(.cancelAction)
             }
-        }.padding(20)
+        }.toolWindow()
             .onChange(of: selectedID) { _, _ in rename = selected?.name ?? ""; error = nil }
     }
 

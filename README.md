@@ -22,9 +22,9 @@ KeyboardShortcuts is pinned to 3.0.1 in the Xcode workspace's resolved package f
 3. Choose **Area** and drag a rectangle. Drag inside to move it; drag an edge or corner handle to resize it. Drawing elsewhere replaces the area in one undoable action. Choose Width, Height, or Both in the nearby readout before copying.
 4. **Pin & work** keeps measurements visible and passes mouse and keyboard input to the app underneath. **Hide** removes the overlay. Use the activation shortcut again to edit retained measurements. While editing, the same shortcut pins them.
 
-The compact charcoal toolbar keeps editing controls in one row on normal displays. Selected tools and guide outlines use pink; the selected measurement and Copy live in a separate nearby readout. Pin & work hides both interactive surfaces. Editing captures clicks across the display; pin or hide to interact with other apps.
+The compact charcoal toolbar keeps editing controls in one row when the display’s usable width is at least 1120 points, and two rows otherwise: a **Tools** menu, the Guides/Area/Annotate tools with icons, unit and scale, grid, reference image, undo/redo, then **Pin & work** and **Hide**. Selected tools and guides use pink; the selected measurement and Copy live in a separate nearby readout. A hint bar at the bottom of the display names the current tool and shows its keys, including your activation shortcut. Pin & work hides both interactive surfaces. Editing captures clicks across the display; pin or hide to interact with other apps.
 
-Both rulers label screen-point coordinates every 100 points; vertical labels rotate to fit the narrow strip. Open the **ruler icon menu** in the toolbar or **Settings → Ruler background** to choose **Solid** or **Transparent**. Transparent removes the background while retaining outlined ticks and numbers. The choice applies to both rulers immediately and is saved locally; Solid is the default.
+Both rulers label screen-point coordinates every 100 points; vertical labels rotate to fit the narrow strip. Open the **Tools** menu in the toolbar or **Settings → Rulers** to choose **Solid** or **Transparent**. Transparent removes the ruler background; each number keeps its own dark chip and each tick a light halo, so both stay readable over light, dark and busy content. The choice applies to both rulers immediately and is saved locally; Solid is the default.
 
 | While the canvas has keyboard focus | Action |
 | --- | --- |
@@ -66,7 +66,7 @@ Capture runs only after Start while the preview is open. Stop, Close, changing t
 
 ## Save layouts
 
-Choose **Saved Layouts…** from the menu bar or toolbar’s ruler menu. Name the current setup and choose **Save Current**. This saves the active display’s guides, measured Area, grid, annotations, colours (including Transparent), style defaults and spotlight/dimming. Names are trimmed, 1–80 characters and unique ignoring case. Saving creates a snapshot; later canvas edits do not update it automatically.
+Choose **Saved Layouts…** from the menu bar or toolbar’s **Tools** menu. Name the current setup and choose **Save Current**. This saves the active display’s guides, measured Area, grid, annotations, colours (including Transparent), style defaults and spotlight/dimming. Names are trimmed, 1–80 characters and unique ignoring case. Saving creates a snapshot; later canvas edits do not update it automatically.
 
 Select a saved entry to **Load Layout**, **Rename** or **Delete** it. The list shows its screen-point size, backing factor and content counts. Loading requires exactly the same screen-point dimensions and backing factor; another display with those properties can load it. Geometry is never scaled to fit. Loading replaces guides/Area/grid/annotations, clears tool histories and selection, and resets units to Screen pt and calibration to unconfirmed. Design px/rem grids pause until you use **Set scale** again. Reference images and global preferences are unaffected.
 
@@ -76,7 +76,7 @@ The library is stored locally at `~/Library/Application Support/Guides/layouts.j
 
 ## Switch project profiles
 
-Choose **Project Profiles…** from the menu bar or toolbar’s ruler menu. Enter a name and choose **Save Current** to store the current rem base and spacing tokens with their tolerance. Select a profile and choose **Apply Profile** to replace both settings together; **Undo Apply** restores the values from before the latest apply during this run, replacing any rem-base or token edits made since that apply. A profile that already equals the current settings is labelled as matching. Rename and Delete act on the selected profile, with one-level **Undo Delete**.
+Choose **Project Profiles…** from the menu bar or toolbar’s **Tools** menu. Enter a name and choose **Save Current** to store the current rem base and spacing tokens with their tolerance. Select a profile and choose **Apply Profile** to replace both settings together; **Undo Apply** restores the values from before the latest apply during this run, replacing any rem-base or token edits made since that apply. A profile that already equals the current settings is labelled as matching. Rename and Delete act on the selected profile, with one-level **Undo Delete**.
 
 Profiles are snapshots: editing the rem base or tokens afterwards does not change a saved profile, and nothing is applied at launch. Applying does not touch measurements, calibration scale, ruler appearance or saved layouts. Opening Project Profiles closes an open Spacing Tokens editor and discards its unsaved draft, and the reverse.
 
@@ -84,7 +84,7 @@ The library is stored locally at `~/Library/Application Support/Guides/profiles.
 
 ## Compare spacing tokens
 
-Choose **Spacing Tokens…** from the menu bar or toolbar’s ruler menu. Enter one declaration per line, such as `--space-2: 8px;`, or choose **Use Example**, then **Save Scale** (Command-S). Standard Select All, Copy, Cut, Paste, Undo/Redo and Close shortcuts work in this editor. Closing or **Cancel** discards unsaved edits; **Clear Draft** followed by Save removes the scale.
+Choose **Spacing Tokens…** from the menu bar or toolbar’s **Tools** menu. Enter one declaration per line, such as `--space-2: 8px;`, or choose **Use Example**, then **Save Scale** (Command-S). Standard Select All, Copy, Cut, Paste, Undo/Redo and Close shortcuts work in this editor. Closing or **Cancel** discards unsaved edits; **Clear Draft** followed by Save removes the scale.
 
 Use up to 64 tokens with nonnegative decimal `px` values (0–1000000). Names start with `--` and an ASCII letter or underscore, followed by ASCII letters, digits, underscores or hyphens, up to 64 characters total. Names are case-sensitive and unique; equal-valued aliases are allowed. This accepts a declaration list, without selectors, braces, comments, `rem`, expressions or CSS-file imports. The scale and tolerance are saved locally.
 
@@ -130,7 +130,7 @@ Input is limited to 100 MiB; the rendered preview is bounded to 4096 pixels on i
 
 ## Inspect an image
 
-Choose **Inspect Image…** from the menu bar or the toolbar’s ruler icon menu. Use **Open Image…** (Command-O), drop one local image into the window, or choose **Paste Image** (Command-V). Finder file copies preserve original file metadata; image-only clipboard copies are explicitly labelled as a clipboard representation, whose format and size can differ from the original file.
+Choose **Inspect Image…** from the menu bar or the toolbar’s **Tools** menu. Use **Open Image…** (Command-O), drop one local image into the window, or choose **Paste Image** (Command-V). Finder file copies preserve original file metadata; image-only clipboard copies are explicitly labelled as a clipboard representation, whose format and size can differ from the original file.
 
 The inspector shows original pixel dimensions with orientation applied, aspect ratio, format, byte size, and alpha-channel presence. **Copy Dimensions**, **Copy Width**, and **Copy Height** copy those values. DPI, desktop zoom, and ruler calibration do not change them. The preview is scaled; it is not an on-screen size measurement. An alpha channel indicates the ability to store transparency, not whether individual pixels are transparent.
 
@@ -138,7 +138,7 @@ Imports use macOS Image I/O (including PNG, JPEG, TIFF, GIF and HEIC), up to 100
 
 ## Resize a window
 
-Choose **Resize Window…** from the menu bar or the toolbar’s ruler menu. Select an app and **Use App’s Front Window**. Check its title, enter width and height in **screen points** (or choose a preset), then **Resize Window**. The tool reads back the accepted size and reports constraints. **Restore Previous Frame** restores the size and position saved before the latest resize attempt on that same window. Refreshing the target or closing the tool discards its recovery session.
+Choose **Resize Window…** from the menu bar or the toolbar’s **Tools** menu. Select an app and **Use App’s Front Window**. Check its title, enter width and height in **screen points** (or choose a preset), then **Resize Window**. The tool reads back the accepted size and reports constraints. **Restore Previous Frame** restores the size and position saved before the latest resize attempt on that same window. Refreshing the target or closing the tool discards its recovery session.
 
 A 2560 × 1440 window includes browser toolbars and borders. It is not a 2560 × 1440 CSS viewport or a monitor-resolution change. Browser zoom and display scaling also affect that comparison. Use browser responsive design tools when the requirement is an exact website viewport. Apps may restrict large or small windows; Guides reports the actual result.
 

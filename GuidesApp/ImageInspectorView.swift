@@ -8,7 +8,9 @@ struct ImageInspectorView: View {
     let paste: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
+            ToolHeader(symbol: "photo", title: "Inspect an image",
+                subtitle: "Read original image pixels, independently of desktop zoom and ruler calibration.")
             HStack {
                 Button("Open Image…", systemImage: "folder", action: open).help("Open Image (Command-O)")
                 Button("Paste Image", systemImage: "doc.on.clipboard", action: paste).help("Paste Image (Command-V)")
@@ -43,15 +45,9 @@ struct ImageInspectorView: View {
                 Text(error + (model.image == nil ? "" : " Previous image retained."))
                     .font(.callout).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
-            if let image = model.image {
-                metadata(image.metadata)
-            } else {
-                Text("Inspect original image pixels, independently of desktop zoom and ruler calibration.")
-                    .font(.callout).foregroundStyle(.secondary)
-            }
-            Text("Images stay on this Mac and are discarded when this window closes.")
-                .font(.caption).foregroundStyle(.secondary)
-        }.padding(20)
+            if let image = model.image { ToolCard { metadata(image.metadata) } }
+            ToolNote("Images stay on this Mac and are discarded when this window closes.")
+        }.toolWindow()
     }
 
     private func metadata(_ metadata: ImageMetadata) -> some View {

@@ -33,22 +33,25 @@ final class AppController: NSObject, NSApplicationDelegate {
         statusItem.button?.image = NSImage(systemSymbolName: "ruler", accessibilityDescription: "Guides")
         statusItem.button?.toolTip = "Guides — desktop measurements"
         let menu = NSMenu()
-        menu.addItem(item("Edit Guides", #selector(editGuides)))
-        menu.addItem(item("Measure Area", #selector(measureArea)))
-        menu.addItem(item("Measure Corner Radius", #selector(measureRadius)))
-        menu.addItem(item("Annotate", #selector(annotate)))
-        menu.addItem(item("Inspect Image…", #selector(inspectImage)))
-        menu.addItem(item("Resize Window…", #selector(resizeWindow)))
-        menu.addItem(item("Spacing Tokens…", #selector(editSpacingTokens)))
-        menu.addItem(item("Saved Layouts…", #selector(showSavedLayouts)))
-        menu.addItem(item("Project Profiles…", #selector(showProjectProfiles)))
+        menu.addItem(.sectionHeader(title: "Measure"))
+        menu.addItem(item("Edit Guides", #selector(editGuides), symbol: "ruler"))
+        menu.addItem(item("Measure Area", #selector(measureArea), symbol: "rectangle.dashed"))
+        menu.addItem(item("Measure Corner Radius", #selector(measureRadius), symbol: "app.dashed"))
+        menu.addItem(item("Annotate", #selector(annotate), symbol: "pencil.line"))
         menu.addItem(.separator())
-        menu.addItem(item("Hide Measurements", #selector(hideMeasurements)))
-        let clearItem = item("Clear Measurements", #selector(clearMeasurements))
+        menu.addItem(.sectionHeader(title: "Tools"))
+        menu.addItem(item("Inspect Image…", #selector(inspectImage), symbol: "photo"))
+        menu.addItem(item("Resize Window…", #selector(resizeWindow), symbol: "macwindow"))
+        menu.addItem(item("Spacing Tokens…", #selector(editSpacingTokens), symbol: "list.bullet.rectangle"))
+        menu.addItem(item("Saved Layouts…", #selector(showSavedLayouts), symbol: "square.stack"))
+        menu.addItem(item("Project Profiles…", #selector(showProjectProfiles), symbol: "folder"))
+        menu.addItem(.separator())
+        menu.addItem(item("Hide Measurements", #selector(hideMeasurements), symbol: "eye.slash"))
+        let clearItem = item("Clear Measurements", #selector(clearMeasurements), symbol: "trash")
         clearItem.isEnabled = true
         menu.addItem(clearItem)
         menu.addItem(.separator())
-        menu.addItem(item("Settings…", #selector(showSettings)))
+        menu.addItem(item("Settings…", #selector(showSettings), symbol: "gearshape"))
         menu.addItem(item("Quit Guides", #selector(quit)))
         menu.autoenablesItems = false
         statusItem.menu = menu
@@ -60,11 +63,24 @@ final class AppController: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(screensChanged),
             name: NSWorkspace.didWakeNotification, object: nil)
         if ProcessInfo.processInfo.arguments.contains("--show-overlay") { editGuides() }
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if let index = arguments.firstIndex(of: "--design-snapshots"), arguments.indices.contains(index + 1) {
+            DesignSnapshots.run(overlay: overlay, directory: URL(fileURLWithPath: arguments[index + 1]), windows: [
+                ("6-settings", { [weak self] in self?.showSettings() }),
+                ("7-spacing-tokens", { [weak self] in self?.editSpacingTokens() }),
+                ("8-project-profiles", { [weak self] in self?.showProjectProfiles() }),
+                ("9-saved-layouts", { [weak self] in self?.showSavedLayouts() }),
+                ("10-resize-window", { [weak self] in self?.resizeWindow() }),
+                ("11-inspect-image", { [weak self] in self?.inspectImage() })])
+        }
+#endif
     }
 
-    private func item(_ title: String, _ action: Selector) -> NSMenuItem {
+    private func item(_ title: String, _ action: Selector, symbol: String? = nil) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = self
+        if let symbol { item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil) }
         return item
     }
 
@@ -106,7 +122,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     @objc private func showSettings() {
         overlay.hide()
         if settingsWindow == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 300),
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 500),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
             window.title = "Guides Settings"
             window.isReleasedWhenClosed = false
@@ -126,24 +142,36 @@ private struct SettingsView: View {
 
     var body: some View {
         Form {
-            KeyboardShortcuts.Recorder("Edit / Pin Guides:", name: .editGuides)
-            Picker("Ruler background:", selection: Binding(get: { preferences.rulerAppearance }, set: { preferences.setRulerAppearance($0) })) {
-                ForEach(RulerAppearance.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }.pickerStyle(.segmented)
-            Text("Transparent keeps the numbers and ticks visible without a background.")
-                .font(.caption).foregroundStyle(.secondary)
-            TextField("Root font size (px):", text: $rootText).onSubmit { applyRoot() }
-            HStack {
-                Text("Used for rem conversion.").font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button("Apply", action: applyRoot)
+            Section("Shortcut") {
+                KeyboardShortcuts.Recorder("Edit / Pin Guides", name: .editGuides)
+                Text("Press once to edit measurements, and again to pin them and work in other apps.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            if let error { Text(error).foregroundStyle(.red).font(.caption) }
-            Text("Measurements and calibration start fresh when Guides quits.")
-                .font(.caption).foregroundStyle(.secondary)
+            Section("Rulers") {
+                Picker("Background", selection: Binding(get: { preferences.rulerAppearance }, set: { preferences.setRulerAppearance($0) })) {
+                    ForEach(RulerAppearance.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }.pickerStyle(.segmented)
+                Text("Transparent removes the ruler background; numbers keep their own dark chips so they stay readable.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Units") {
+                LabeledContent("Root font size (px)") {
+                    HStack {
+                        TextField("Root font size (px)", text: $rootText).labelsHidden().frame(width: 90).onSubmit { applyRoot() }
+                        Button("Apply", action: applyRoot)
+                    }
+                }
+                Text("Used for rem conversion.").font(.caption).foregroundStyle(.secondary)
+                if let error { Text(error).foregroundStyle(.red).font(.caption) }
+            }
+            Section {
+                Text("Measurements and calibration start fresh when Guides quits.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
-        .padding(24)
-        .frame(width: 420)
+        .formStyle(.grouped)
+        .tint(OverlayStyle.accent)
+        .frame(width: 460, height: 500)
         .onAppear { rootText = String(Double(preferences.rootPixels)) }
         .onChange(of: preferences.rootPixels) { _, value in rootText = String(Double(value)) }
     }

@@ -59,7 +59,7 @@ struct OverlayControls: View {
             Menu {
                 Button("Inspect Image…", systemImage: "photo", action: onInspectImage)
                 Button("Resize Window…", systemImage: "macwindow", action: onResizeWindow)
-                Button("Spacing Tokens…", systemImage: "list.bullet", action: onSpacingTokens)
+                Button("Spacing Tokens…", systemImage: "list.bullet.rectangle", action: onSpacingTokens)
                 Button("Saved Layouts…", systemImage: "square.stack", action: onSavedLayouts)
                 Button("Project Profiles…", systemImage: "folder", action: onProjectProfiles)
                 Divider()
@@ -73,21 +73,23 @@ struct OverlayControls: View {
                     ForEach(RulerAppearance.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
             } label: {
-                Image(systemName: "ruler").font(.system(size: 15)).foregroundStyle(.white)
+                Label("Tools", systemImage: "ruler").labelStyle(.titleAndIcon)
+                    .font(.system(size: 13, weight: .medium)).foregroundStyle(.white)
             }
             .menuStyle(.borderlessButton).fixedSize()
-            .help("Ruler background: \(model.rulerAppearance.rawValue)")
+            .help("More tools, grid and ruler background (\(model.rulerAppearance.rawValue))")
             .accessibilityLabel("Tools and ruler appearance")
             .accessibilityValue(model.rulerAppearance.rawValue)
             divider
-            HStack(spacing: 0) {
+            HStack(spacing: 2) {
                 ForEach(OverlayTool.allCases, id: \.self) { tool in
-                    Button(tool.rawValue) { calibrationPresented = false; gridPresented = false; referencePresented = false; onTool(tool) }
+                    Button(tool.rawValue, systemImage: tool.symbol) { calibrationPresented = false; gridPresented = false; referencePresented = false; onTool(tool) }
                         .buttonStyle(RailButtonStyle(selected: (model.presentation.tool == tool && !model.aligningReference)))
                         .fixedSize()
+                        .help(tool.summary)
                         .accessibilityAddTraits((model.presentation.tool == tool && !model.aligningReference) ? [.isSelected] : [])
                 }
-            }.background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+            }.modifier(RailSegments())
             divider
             Menu {
                 ForEach(MeasurementUnit.allCases, id: \.self) { unit in
@@ -97,7 +99,8 @@ struct OverlayControls: View {
                 Text(model.unit.rawValue).font(.system(size: 13, weight: .medium))
             }
             .menuStyle(.borderlessButton).frame(width: 105, height: 30).padding(.horizontal, 5)
-            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+            .background(OverlayStyle.controlFill, in: RoundedRectangle(cornerRadius: OverlayStyle.controlRadius))
+            .help("Unit shown on measurements and copied values")
             .accessibilityLabel("Unit").accessibilityValue(model.unit.rawValue)
             Button(model.calibration.isConfirmed ? "Scale \(MeasurementText.number(model.calibration.pointsPerPixel * 100))%" : "Set scale…") {
                 gridPresented = false
@@ -106,6 +109,7 @@ struct OverlayControls: View {
                 calibrationPresented = true
             }
             .buttonStyle(RailButtonStyle(filled: true)).lineLimit(1).frame(width: 120)
+            .help("Tell Guides the zoom of the view you are measuring, for design px and rem")
             .popover(isPresented: $calibrationPresented) {
                 CalibrationEditor(calibration: model.calibration,
                     gapDistance: model.document.selectedGap?.distance,
@@ -158,13 +162,13 @@ struct OverlayControls: View {
                 .disabled(!model.canRedo).help(model.aligningReference ? "Redo reference placement (⇧⌘Z)" : (model.isAnnotating ? "Redo annotation (⇧⌘Z)" : "Redo measurement (⇧⌘Z)")).accessibilityLabel("Redo")
             divider
             Button("Pin & work", systemImage: "pin", action: onPin)
-                .fixedSize().help("Keep measurements visible and interact with other apps. Use the activation shortcut to edit again.")
+                .buttonStyle(RailButtonStyle(filled: true)).fixedSize().help("Keep measurements visible and interact with other apps. Use the activation shortcut to edit again.")
             Button("Hide", systemImage: "eye.slash", action: onHide)
                 .fixedSize().help("Hide measurements and return to other apps (Escape).")
         }
     }
 
-    private var divider: some View { Rectangle().fill(.white.opacity(0.18)).frame(width: 1, height: 24) }
+    private var divider: some View { Rectangle().fill(OverlayStyle.hairline).frame(width: 1, height: 22) }
 
     private func requestUnit(_ unit: MeasurementUnit) {
         if unit.requiresCalibration, !model.calibration.isConfirmed {
@@ -172,6 +176,23 @@ struct OverlayControls: View {
             pendingUnit = unit
             calibrationPresented = true
         } else { onUnit(unit) }
+    }
+}
+
+private extension OverlayTool {
+    var symbol: String {
+        switch self {
+        case .guides: "ruler"
+        case .area: "rectangle.dashed"
+        case .annotate: "pencil.line"
+        }
+    }
+    var summary: String {
+        switch self {
+        case .guides: "Pull guides from the rulers and read the gaps between them"
+        case .area: "Drag a rectangle to read width, height and corner radius"
+        case .annotate: "Draw arrows, lines and a spotlight rectangle"
+        }
     }
 }
 
