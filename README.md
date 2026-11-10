@@ -92,11 +92,19 @@ The library is stored locally at `~/Library/Application Support/Guides/layouts.j
 
 ## Switch project profiles
 
-Choose **Project Profiles…** from the menu bar or toolbar’s **Tools** menu. Enter a name and choose **Save Current** to store the current rem base and spacing tokens with their tolerance. Select a profile and choose **Apply Profile** to replace both settings together; **Undo Apply** restores the values from before the latest apply during this run, replacing any rem-base or token edits made since that apply. A profile that already equals the current settings is labelled as matching. Rename and Delete act on the selected profile, with one-level **Undo Delete**.
+Choose **Project Profiles…** from the menu bar or toolbar’s **Tools** menu. Enter a name and choose **Save Current** to store the current rem base, spacing tokens with their tolerance, and breakpoints. Select a profile and choose **Apply Profile** to replace all three settings together; **Undo Apply** restores the values from before the latest apply during this run, replacing any rem-base, token or breakpoint edits made since that apply. A profile saved before breakpoints existed has none, so applying it clears the current breakpoints. A profile that already equals the current settings is labelled as matching. Rename and Delete act on the selected profile, with one-level **Undo Delete**.
 
-Profiles are snapshots: editing the rem base or tokens afterwards does not change a saved profile, and nothing is applied at launch. Applying does not touch measurements, calibration scale, ruler appearance or saved layouts. Opening Project Profiles closes an open Spacing Tokens editor and discards its unsaved draft, and the reverse.
+Profiles are snapshots: editing the rem base, tokens or breakpoints afterwards does not change a saved profile, and nothing is applied at launch. Applying does not touch measurements, calibration scale, ruler appearance or saved layouts. Opening Project Profiles closes an open Spacing Tokens or Breakpoints editor and discards its unsaved draft, and the reverse.
 
 The library is stored locally at `~/Library/Application Support/Guides/profiles.json`, with atomic writes, limited to 50 profiles and 2 MiB. An unreadable, invalid or newer-version library is retained and blocks changes; correct the file externally, then use **Retry**. There is no sync or import/export UI, and profiles never read a repository, CSS file or design file.
+
+## Mark breakpoints
+
+Choose **Breakpoints…** from the menu bar or toolbar’s **Tools** menu. Enter one breakpoint per line, such as `md: 768px` (`px` and `;` are optional), or choose **Use Example** for Tailwind’s default widths, then **Save Breakpoints** (Command-S). Up to 16 breakpoints; names use ASCII letters, digits, `_` or `-`. Only px is accepted: enter a rem breakpoint as its px value, since a rem in a media query follows the browser’s default font size (48rem is normally 768px), not your rem base.
+
+After **Set scale**, each breakpoint that fits on the display is marked in blue on the top ruler with its name and width, at that width from the display’s left edge at your scale. Until the scale is set the ruler shows **Set scale to show breakpoints** instead. A label that would cover another mark or label is left out; its mark stays.
+
+The marks are your own values, not breakpoints read from a page, and Guides does not know where a browser’s viewport starts or how wide it is. They line up with a page only when its viewport starts at the display’s left edge. They are not guides: they cannot be selected, measured, copied or saved in a layout, and they are hidden while pinned along with the rulers. Breakpoints are saved on this Mac and are part of project profiles.
 
 ## Compare spacing tokens
 
@@ -154,7 +162,7 @@ Imports use macOS Image I/O (including PNG, JPEG, TIFF, GIF and HEIC), up to 100
 
 ## Resize a window
 
-Choose **Resize Window…** from the menu bar or the toolbar’s **Tools** menu. Select an app and **Use App’s Front Window**. Check its title, enter width and height in **screen points** (or choose a preset), then **Resize Window**. The tool reads back the accepted size and reports constraints. **Restore Previous Frame** restores the size and position saved before the latest resize attempt on that same window. Refreshing the target or closing the tool discards its recovery session.
+Choose **Resize Window…** from the menu bar or the toolbar’s **Tools** menu. Select an app and **Use App’s Front Window**. Check its title, enter width and height in **screen points** (or choose a preset), then **Resize Window**. **Presets** lists device classes (phone, tablet and laptop sizes), display sizes and your own breakpoints. A preset only fills in the fields; a breakpoint preset sets the width and keeps the height. Device classes are common sizes, not named models, and a breakpoint width takes one CSS px as one screen point (browser zoom 100%). Many browsers will not shrink to phone widths; the tool reports the size the app accepted. The tool reads back the accepted size and reports constraints. **Restore Previous Frame** restores the size and position saved before the latest resize attempt on that same window. Refreshing the target or closing the tool discards its recovery session.
 
 A 2560 × 1440 window includes browser toolbars and borders. It is not a 2560 × 1440 CSS viewport or a monitor-resolution change. Browser zoom and display scaling also affect that comparison. Use browser responsive design tools when the requirement is an exact website viewport. Apps may restrict large or small windows; Guides reports the actual result.
 

@@ -13,10 +13,12 @@ public final class GuidesPreferences {
     public private(set) var rootPixels: CGFloat
     public private(set) var rulerAppearance: RulerAppearance
     public private(set) var spacingScale: SpacingScale
+    public private(set) var breakpoints: BreakpointSet
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored public var onRootChange: ((CGFloat) -> Void)?
     @ObservationIgnored public var onRulerAppearanceChange: ((RulerAppearance) -> Void)?
     @ObservationIgnored public var onSpacingScaleChange: ((SpacingScale) -> Void)?
+    @ObservationIgnored public var onBreakpointsChange: ((BreakpointSet) -> Void)?
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -26,6 +28,7 @@ public final class GuidesPreferences {
         let storedScale = defaults.dictionary(forKey: "spacingScaleV1")
         spacingScale = (try? SpacingScale(source: storedScale?["source"] as? String ?? "",
             tolerance: storedScale?["tolerance"] as? String ?? "1")) ?? .empty
+        breakpoints = (try? BreakpointSet(source: defaults.string(forKey: "breakpointsV1") ?? "")) ?? .empty
     }
 
     @discardableResult public func setRootPixels(_ value: CGFloat) -> Bool {
@@ -46,5 +49,11 @@ public final class GuidesPreferences {
         spacingScale = value
         defaults.set(["source": value.source, "tolerance": value.toleranceText], forKey: "spacingScaleV1")
         onSpacingScaleChange?(value)
+    }
+
+    public func setBreakpoints(_ value: BreakpointSet) {
+        breakpoints = value
+        defaults.set(value.source, forKey: "breakpointsV1")
+        onBreakpointsChange?(value)
     }
 }

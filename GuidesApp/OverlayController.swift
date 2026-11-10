@@ -23,6 +23,7 @@ final class EditorModel {
     var displayID: UInt32?
     var rulerAppearance: RulerAppearance = .solid
     var spacingScale: SpacingScale = .empty
+    var breakpoints: BreakpointSet = .empty
     let reference = ReferenceOverlayModel()
     var aligningReference = false
     var annotations = AnnotationSession(size: .zero)
@@ -132,6 +133,7 @@ final class OverlayController {
     private let onSpacingTokens: () -> Void
     private let onSavedLayouts: () -> Void
     private let onProjectProfiles: () -> Void
+    private let onBreakpoints: () -> Void
     private var layoutRecovery = LayoutLoadRecovery()
     private var panel: OverlayPanel?
     private var canvas: OverlayCanvas?
@@ -148,17 +150,23 @@ final class OverlayController {
 
     init(preferences: GuidesPreferences, onInspectImage: @escaping () -> Void, onResizeWindow: @escaping () -> Void,
          onSpacingTokens: @escaping () -> Void, onSavedLayouts: @escaping () -> Void,
-         onProjectProfiles: @escaping () -> Void) {
+         onProjectProfiles: @escaping () -> Void, onBreakpoints: @escaping () -> Void) {
         self.preferences = preferences
         self.onInspectImage = onInspectImage
         self.onResizeWindow = onResizeWindow
         self.onSpacingTokens = onSpacingTokens
         self.onSavedLayouts = onSavedLayouts
         self.onProjectProfiles = onProjectProfiles
+        self.onBreakpoints = onBreakpoints
         model.reference.onChange = { [weak self] in self?.saveSession(); self?.refresh() }
         model.calibration.setRootPixels(preferences.rootPixels)
         model.rulerAppearance = preferences.rulerAppearance
         model.spacingScale = preferences.spacingScale
+        model.breakpoints = preferences.breakpoints
+        preferences.onBreakpointsChange = { [weak self] value in
+            self?.model.breakpoints = value
+            self?.refresh()
+        }
         preferences.onSpacingScaleChange = { [weak self] value in
             self?.model.spacingScale = value
             self?.refresh()
@@ -423,7 +431,7 @@ final class OverlayController {
         let controls = ToolbarHostingView(rootView: OverlayControls(model: model,
             onRulerAppearance: { [weak self] in self?.preferences.setRulerAppearance($0) },
             onInspectImage: onInspectImage, onResizeWindow: onResizeWindow, onSpacingTokens: onSpacingTokens, onSavedLayouts: onSavedLayouts,
-            onProjectProfiles: onProjectProfiles,
+            onProjectProfiles: onProjectProfiles, onBreakpoints: onBreakpoints,
             onTool: { [weak self] tool in
                 guard let self else { return }
                 self.model.magnifierPresented = false; self.model.magnifier.stop()

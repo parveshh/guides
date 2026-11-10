@@ -23,6 +23,8 @@ enum DesignSnapshots {
             overlay.designSnapshot("2-guides-transparent", to: directory) { model in
                 model.rulerAppearance = .transparent
                 model.document.select([])
+                // Unconfirmed scale: the ruler shows the set-scale notice instead of markers.
+                model.breakpoints = (try? BreakpointSet(source: BreakpointSet.example)) ?? .empty
             }
             await settle()
             overlay.designSnapshot("2-guides-transparent", to: directory) { _ in }

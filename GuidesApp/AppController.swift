@@ -18,12 +18,14 @@ final class AppController: NSObject, NSApplicationDelegate {
         onResizeWindow: { [weak self] in self?.resizeWindow() },
         onSpacingTokens: { [weak self] in self?.editSpacingTokens() },
         onSavedLayouts: { [weak self] in self?.showSavedLayouts() },
-        onProjectProfiles: { [weak self] in self?.showProjectProfiles() })
+        onProjectProfiles: { [weak self] in self?.showProjectProfiles() },
+        onBreakpoints: { [weak self] in self?.editBreakpoints() })
     private let imageInspector = ImageInspectorController()
     private let windowResizer = WindowResizeController()
     private let spacingTokens = SpacingTokensController()
     private let savedLayouts = SavedLayoutsController()
     private let projectProfiles = ProjectProfilesController()
+    private let breakpoints = BreakpointsController()
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -43,6 +45,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         menu.addItem(item("Inspect Image…", #selector(inspectImage), symbol: "photo"))
         menu.addItem(item("Resize Window…", #selector(resizeWindow), symbol: "macwindow"))
         menu.addItem(item("Spacing Tokens…", #selector(editSpacingTokens), symbol: "list.bullet.rectangle"))
+        menu.addItem(item("Breakpoints…", #selector(editBreakpoints), symbol: "arrow.left.and.right"))
         menu.addItem(item("Saved Layouts…", #selector(showSavedLayouts), symbol: "square.stack"))
         menu.addItem(item("Project Profiles…", #selector(showProjectProfiles), symbol: "folder"))
         menu.addItem(.separator())
@@ -70,6 +73,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                 ("6-settings", { [weak self] in self?.showSettings() }),
                 ("7-spacing-tokens", { [weak self] in self?.editSpacingTokens() }),
                 ("8-project-profiles", { [weak self] in self?.showProjectProfiles() }),
+                ("12-breakpoints", { [weak self] in self?.editBreakpoints() }),
                 ("9-saved-layouts", { [weak self] in self?.showSavedLayouts() }),
                 ("10-resize-window", { [weak self] in self?.resizeWindow() }),
                 ("11-inspect-image", { [weak self] in self?.inspectImage() })])
@@ -99,7 +103,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
     @objc private func resizeWindow() {
         overlay.hide()
-        windowResizer.show()
+        windowResizer.show(breakpoints: preferences.breakpoints)
     }
     @objc private func editSpacingTokens() {
         overlay.hide()
@@ -107,9 +111,16 @@ final class AppController: NSObject, NSApplicationDelegate {
         projectProfiles.close()
         spacingTokens.show(preferences: preferences)
     }
+    @objc private func editBreakpoints() {
+        overlay.hide()
+        // As with spacing tokens, a stale breakpoint draft must not overwrite an applied profile.
+        projectProfiles.close()
+        breakpoints.show(preferences: preferences)
+    }
     @objc private func showProjectProfiles() {
         overlay.hide()
         spacingTokens.close()
+        breakpoints.close()
         projectProfiles.show(preferences: preferences)
     }
     @objc private func hideMeasurements() { overlay.hide() }

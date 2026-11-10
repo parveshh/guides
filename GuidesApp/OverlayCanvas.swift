@@ -457,6 +457,43 @@ final class OverlayCanvas: NSView {
                 drawRulerNumber(Int(y), at: CGPoint(x: leftRuler.minX + 14, y: y + 4), vertical: true)
             }
         }
+        drawBreakpoints()
+    }
+
+    /// The user's breakpoint widths, measured from the display's left edge at the confirmed scale.
+    /// They are reference marks on the ruler only: not guides, not selectable and never measured.
+    private func drawBreakpoints() {
+        guard !model.breakpoints.isEmpty else { return }
+        let attributes: [NSAttributedString.Key: Any] = [.font: OverlayStyle.rulerFont, .foregroundColor: NSColor.white]
+        func chip(_ text: String, x: CGFloat) -> CGRect {
+            let size = (text as NSString).size(withAttributes: attributes)
+            return CGRect(x: x, y: topRuler.minY + 4, width: size.width + 10, height: 16)
+        }
+        func draw(_ text: String, in rect: CGRect) {
+            OverlayStyle.breakpoint.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).fill()
+            (text as NSString).draw(at: CGPoint(x: rect.minX + 5, y: rect.minY + 2), withAttributes: attributes)
+        }
+        guard model.calibration.isConfirmed else {
+            // A breakpoint is a CSS width; it is not placed from an assumed scale.
+            let text = "Set scale to show breakpoints"
+            draw(text, in: chip(text, x: leftRuler.maxX + 6))
+            return
+        }
+        let markers = visibleBreakpoints
+        let widths = markers.map { chip($0.breakpoint.label, x: 0).width }
+        // A label sits right of its mark, or left of it when the next mark or the display edge is
+        // in the way. One that would cover another mark or label is left out, and the mark stays.
+        let origins = BreakpointLabelLayout.origins(positions: markers.map(\.position), widths: widths,
+            in: leftRuler.maxX...max(leftRuler.maxX, usableRect.maxX))
+        for (marker, origin) in zip(markers, origins) {
+            let tick = NSBezierPath()
+            tick.move(to: CGPoint(x: marker.position, y: topRuler.minY))
+            tick.line(to: CGPoint(x: marker.position, y: topRuler.maxY))
+            NSColor(white: 1, alpha: 0.85).setStroke(); tick.lineWidth = 4; tick.stroke()
+            OverlayStyle.breakpoint.setStroke(); tick.lineWidth = 2; tick.stroke()
+            if let origin { draw(marker.breakpoint.label, in: chip(marker.breakpoint.label, x: origin)) }
+        }
     }
 
     private func drawRulerTick(_ path: NSBezierPath) {
@@ -496,12 +533,26 @@ final class OverlayCanvas: NSView {
         return "\(document.shapes.count) annotations" + selected + (document.spotlight == nil ? " · Spotlight off" : " · Spotlight on, \(Int((document.dimOpacity * 100).rounded()))% dimming")
     }
 
+    /// Markers that fall on the drawn top ruler, right of the left ruler.
+    private var visibleBreakpoints: [BreakpointMarker] {
+        model.breakpoints.markers(calibration: model.calibration, width: bounds.width)
+            .filter { $0.position > leftRuler.maxX && $0.position <= usableRect.maxX }
+    }
+
+    private var breakpointStatus: String {
+        guard !model.breakpoints.isEmpty else { return "No breakpoints" }
+        guard model.calibration.isConfirmed else { return "Breakpoints hidden until the scale is set" }
+        let shown = visibleBreakpoints
+        if shown.isEmpty { return "No breakpoints fit on this display" }
+        return "Breakpoints on the top ruler: " + shown.map { "\($0.breakpoint.label) at \(MeasurementText.number($0.position)) screen pt" }.joined(separator: ", ")
+    }
+
     func updateAccessibility() {
         let editing = model.presentation.mode == .editing
         setAccessibilityElement(editing)
         setAccessibilityRole(.group)
         setAccessibilityLabel("Measurements")
-        setAccessibilityValue([model.grid.isEnabled ? model.gridStatus : "Grid hidden", referenceStatus ?? "Reference hidden", annotationStatus].joined(separator: " · "))
+        setAccessibilityValue([model.grid.isEnabled ? model.gridStatus : "Grid hidden", referenceStatus ?? "Reference hidden", annotationStatus, breakpointStatus].joined(separator: " · "))
         setAccessibilityHelp("H and V add guides at the pointer. Bracket keys select; Shift extends a parallel pair. Arrow keys move the selection.")
         guard editing else { setAccessibilityChildren([]); accessibilityItems = [:]; return }
         if model.aligningReference {

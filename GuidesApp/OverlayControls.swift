@@ -9,6 +9,7 @@ struct OverlayControls: View {
     var onSpacingTokens: () -> Void
     var onSavedLayouts: () -> Void
     var onProjectProfiles: () -> Void
+    var onBreakpoints: () -> Void
     var onTool: (OverlayTool) -> Void
     var onUnit: (MeasurementUnit) -> Void
     var onCalibration: (Calibration) -> Void
@@ -60,6 +61,7 @@ struct OverlayControls: View {
                 Button("Inspect Image…", systemImage: "photo", action: onInspectImage)
                 Button("Resize Window…", systemImage: "macwindow", action: onResizeWindow)
                 Button("Spacing Tokens…", systemImage: "list.bullet.rectangle", action: onSpacingTokens)
+                Button("Breakpoints…", systemImage: "arrow.left.and.right", action: onBreakpoints)
                 Button("Saved Layouts…", systemImage: "square.stack", action: onSavedLayouts)
                 Button("Project Profiles…", systemImage: "folder", action: onProjectProfiles)
                 Divider()

@@ -15,6 +15,9 @@ enum OverlayStyle {
     static let guide = NSColor(srgbRed: 1, green: 0.08, blue: 0.53, alpha: 1)
     /// Opaque enough to stay readable over any desktop content without sampling the screen.
     static let chip = NSColor(srgbRed: 0.1, green: 0.1, blue: 0.115, alpha: 0.96)
+    /// Breakpoint markers are reference marks, not guides, so they do not use the guide pink.
+    /// Dark enough for white 10-point text (about 5:1) and to stand out on the light solid ruler.
+    static let breakpoint = NSColor(srgbRed: 0, green: 0.42, blue: 0.78, alpha: 1)
     static let chipBorder = NSColor(white: 1, alpha: 0.22)
     static let halo = NSColor(white: 0, alpha: 0.45)
     static let labelFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)

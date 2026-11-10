@@ -14,6 +14,7 @@ final class WindowResizeControls {
     var applications: [ResizeApplication] = []
     var selectedProcess: Int32?
     var hasAccess = false
+    var breakpointWidths: [WindowSizePreset] = []
 }
 
 @MainActor
@@ -39,7 +40,8 @@ final class WindowResizeController: NSObject, NSWindowDelegate {
         lastApplication = application
     }
 
-    func show() {
+    func show(breakpoints: BreakpointSet) {
+        controls.breakpointWidths = WindowSizePreset.widths(for: breakpoints)
         guard !model.isBusy else { window?.makeKeyAndOrderFront(nil); return }
         remember(NSWorkspace.shared.frontmostApplication)
         refreshApplications()
@@ -151,14 +153,15 @@ private struct WindowResizeView: View {
                         Text("×").padding(.bottom, 5)
                         dimension("Height", text: $model.height)
                         Menu("Presets") {
-                            ForEach([CGSize(width: 1280, height: 720), CGSize(width: 1440, height: 900),
-                                     CGSize(width: 1920, height: 1080), CGSize(width: 2560, height: 1440)], id: \.width) { size in
-                                Button("\(Int(size.width)) × \(Int(size.height))") {
-                                    model.width = String(Int(size.width)); model.height = String(Int(size.height))
-                                }
+                            Section("Device classes") { presets(WindowSizePreset.devices) }
+                            Section("Displays") { presets(WindowSizePreset.displays) }
+                            if !controls.breakpointWidths.isEmpty {
+                                Section("Your breakpoints · width only") { presets(controls.breakpointWidths) }
                             }
                         }.frame(width: 110).padding(.bottom, 2)
                     }.disabled(model.isBusy)
+                    Text("Presets fill in the fields; nothing changes until Resize Window. Device classes are common sizes, not named models. A breakpoint preset sets the width only, taking one CSS px as one screen point (browser zoom 100%).")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     HStack {
                         Button("Resize Window") { model.resize() }.buttonStyle(.borderedProminent)
                             .disabled(!controls.hasAccess || model.target == nil || model.isBusy)
@@ -177,6 +180,15 @@ private struct WindowResizeView: View {
                 }
                 ToolNote("This does not set the page’s CSS viewport or your monitor’s pixel resolution. Apps may enforce minimum sizes or limit windows to the display; Guides reads back the accepted size. For an exact website viewport, use your browser’s responsive design tools.")
             }.toolWindow()
+        }
+    }
+
+    private func presets(_ items: [WindowSizePreset]) -> some View {
+        ForEach(items) { preset in
+            Button(preset.title) {
+                model.width = String(preset.width)
+                if let height = preset.height { model.height = String(height) }
+            }
         }
     }
 

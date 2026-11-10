@@ -24,8 +24,8 @@ private func profileContent(root: CGFloat = 20, source: String = SpacingScale.ex
     let decoded = try JSONDecoder().decode(ProjectProfileContent.self, from: JSONEncoder().encode(content))
     #expect(decoded == content)
     #expect(try decoded.spacingScale() == SpacingScale(source: SpacingScale.example, tolerance: "0.5"))
-    #expect(content.summary == "20px root · 6 spacing tokens · 0.5px tolerance")
-    #expect(try profileContent(root: 10.5, source: "--gap: 8px", tolerance: "1").summary == "10.5px root · 1 spacing token · 1px tolerance")
+    #expect(content.summary == "20px root · 6 spacing tokens · 0.5px tolerance · 0 breakpoints")
+    #expect(try profileContent(root: 10.5, source: "--gap: 8px", tolerance: "1").summary == "10.5px root · 1 spacing token · 1px tolerance · 0 breakpoints")
     for root in [0, -16, CGFloat.infinity, .nan] {
         #expect(throws: ProfileError.self) { try profileContent(root: root) }
     }
@@ -98,7 +98,7 @@ private func profileContent(root: CGFloat = 20, source: String = SpacingScale.ex
     let url = try temporaryProfiles()
     defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
     let content = try profileContent()
-    for bytes in [Data("corrupt".utf8), Data("{\"version\":2,\"profiles\":[]}".utf8), Data(repeating: 32, count: ProjectProfilesStore.maximumBytes + 1)] {
+    for bytes in [Data("corrupt".utf8), Data("{\"version\":3,\"profiles\":[]}".utf8), Data(repeating: 32, count: ProjectProfilesStore.maximumBytes + 1)] {
         try bytes.write(to: url)
         let store = ProjectProfilesStore(fileURL: url)
         #expect(store.storageError != nil && store.profiles.isEmpty)
@@ -129,6 +129,7 @@ private func profileContent(root: CGFloat = 20, source: String = SpacingScale.ex
         [good, try altered { $0["rootPixels"] = 0 }],
         [good, try altered { $0["spacingSource"] = "--bad: 8rem;" }],
         [good, try altered { $0["spacingTolerance"] = "101" }],
+        [good, try altered { $0["breakpointSource"] = "md: 48rem" }],
         [good, good], [good, duplicateName],
         (0...50).map { ProjectProfile(id: UUID(), name: "Profile \($0)", content: good.content) }
     ]
@@ -153,4 +154,44 @@ private func profileContent(root: CGFloat = 20, source: String = SpacingScale.ex
     #expect(throws: (any Error).self) { try store.rename(id, to: "Failed") }
     #expect(throws: (any Error).self) { try store.delete(id) }
     #expect(store.profiles == original && !store.canUndoDelete)
+}
+
+@Test @MainActor func profilesCarryBreakpointsAndVersionOneLibrariesStillLoad() throws {
+    let url = try temporaryProfiles()
+    defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+    let (preferences, cleanUp) = temporaryPreferences()
+    defer { cleanUp() }
+    // A version 1 library has no breakpoint field; it reads as a profile without breakpoints.
+    let legacyID = UUID()
+    let legacy = "{\"version\":1,\"profiles\":[{\"id\":\"\(legacyID.uuidString)\",\"name\":\"Old\",\"content\":{\"rootPixels\":16,\"spacingSource\":\"--gap: 8px;\",\"spacingTolerance\":\"1\"}}]}"
+    try Data(legacy.utf8).write(to: url)
+    let store = ProjectProfilesStore(fileURL: url)
+    #expect(store.storageError == nil && store.profiles.count == 1)
+    #expect(try store.profiles[0].content.breakpoints().isEmpty)
+    #expect(store.profiles[0].content.summary == "16px root · 1 spacing token · 1px tolerance · 0 breakpoints")
+
+    let original = try BreakpointSet(source: "wide: 1200px")
+    preferences.setBreakpoints(original)
+    let shop = try BreakpointSet(source: BreakpointSet.example)
+    let content = try ProjectProfileContent(rootPixels: 16, spacingScale: .empty, breakpoints: shop)
+    #expect(content.summary == "16px root · 0 spacing tokens · 1px tolerance · 5 breakpoints")
+    #expect(try JSONDecoder().decode(ProjectProfileContent.self, from: JSONEncoder().encode(content)) == content)
+    let id = try store.save(name: "Shop", content: content)
+    // The next change rewrites the library as version 2, keeping the old profile.
+    struct Header: Decodable { let version: Int }
+    #expect(try JSONDecoder().decode(Header.self, from: Data(contentsOf: url)).version == 2)
+    #expect(ProjectProfilesStore(fileURL: url).profiles == store.profiles)
+
+    var changes: [BreakpointSet] = []
+    preferences.onBreakpointsChange = { changes.append($0) }
+    try store.apply(id, to: preferences)
+    #expect(preferences.breakpoints == shop && changes == [shop])
+    #expect(try ProjectProfileContent(preferences: preferences) == content)
+    try store.undoApply(to: preferences)
+    #expect(preferences.breakpoints == original)
+    // Applying a profile saved before breakpoints existed clears them, and Undo Apply brings them back.
+    try store.apply(legacyID, to: preferences)
+    #expect(preferences.breakpoints.isEmpty && preferences.spacingScale.tokens.count == 1)
+    try store.undoApply(to: preferences)
+    #expect(preferences.breakpoints == original)
 }

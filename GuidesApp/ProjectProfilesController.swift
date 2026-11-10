@@ -53,7 +53,7 @@ private struct ProjectProfilesView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             ToolHeader(symbol: "folder", title: "Project profiles",
-                subtitle: "Save the rem base and spacing tokens for a project, then apply them when you switch projects.")
+                subtitle: "Save the rem base, spacing tokens and breakpoints for a project, then apply them when you switch projects.")
             ToolCard("Current settings") {
                 Text(current?.summary ?? "unavailable").font(.callout.monospacedDigit())
                 HStack {
@@ -100,12 +100,12 @@ private struct ProjectProfilesView: View {
                 }
             }
             if let error { Text(error).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
-            ToolNote("Applying replaces both current settings. Measurements, calibration and saved layouts stay as they are. Profiles stay on this Mac and nothing applies automatically.")
+            ToolNote("Applying replaces all three current settings; a profile saved before breakpoints existed clears them. Measurements, calibration and saved layouts stay as they are. Profiles stay on this Mac and nothing applies automatically.")
             Divider()
             HStack {
                 Button("Undo Delete") { perform { selectedID = try store.undoDelete() } }.disabled(!store.canUndoDelete)
                 Button("Undo Apply") { perform { try store.undoApply(to: preferences) } }.disabled(!store.canUndoApply)
-                    .help("Restore the rem base and spacing tokens from before the latest apply, replacing any edits made to them since.")
+                    .help("Restore the rem base, spacing tokens and breakpoints from before the latest apply, replacing any edits made to them since.")
                 Spacer()
                 Button("Close", action: close).keyboardShortcut(.cancelAction)
             }

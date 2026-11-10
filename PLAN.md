@@ -321,7 +321,7 @@ Groups are delivered in order, one reviewed slice per item. Group A needs no new
 | --- | --- | --- |
 | A. Front-end loop | A1 Project profiles | Named local sets of rem base and spacing scale, applied explicitly. Later slices add their settings to the profile. |
 | | A2 Copy formats (done) | Copy a measurement as CSS declarations (`width`, `height`, `border-radius`, gap) and Tailwind classes, from calibrated values only. |
-| | A3 Breakpoints and device presets | User-supplied breakpoint markers on the top ruler; device sizes in Resize Window. |
+| | A3 Breakpoints and device presets (done) | User-supplied breakpoint markers on the top ruler; device sizes in Resize Window. |
 | | A4 Column grid | Columns, gutters and margins alongside the square grid. |
 | | A5 Calculators | `clamp()` fluid sizing, px/rem/em/vw conversion, aspect-ratio lock for Area. |
 | | A6 Image inspector extras | `@2x`/`srcset` size calculator and base64 data URI copy. |
@@ -407,6 +407,23 @@ Implementation: `CopyFormat`, `CopySubject` and `CopyFormatter` in GuidesCore co
 Validation: 120 core tests pass, including six new formatter tests for every subject in both formats, explicit-calibration gating in every unit, px versus rem, readout precision and invalid distances. The native Debug build passes. Independent review found that the uncalibrated menu would also have shown an empty section header, that the wider button row could truncate long values at the 460-point readout cap, and that the gating test covered only two subjects; the menu branches are now exclusive, the cap is 520 points, and the test covers every subject. The menu itself is unverified by hand; the checks are listed in TESTING.md. Commit gate: clean independent review of the exact staged diff.
 
 Research: Context7 (`/websites/tailwindcss`) confirmed the arbitrary-value forms [`w-[<value>]`](https://tailwindcss.com/docs/width), [`h-[<value>]`](https://tailwindcss.com/docs/height), [`rounded-[<value>]`](https://tailwindcss.com/docs/border-radius) and [`gap-[<value>]`](https://tailwindcss.com/docs/gap), each emitting the value unchanged.
+
+### Slice A3: breakpoints and device presets
+
+On 2026-11-10 the user asked to start A3. Show the project's own breakpoint widths on the top ruler and offer device-class and breakpoint sizes in Resize Window. Breakpoints are values the user types. Guides does not read them from a stylesheet or a browser, and does not know where a page's viewport starts or how wide it is.
+
+| ID | Story | Acceptance |
+| --- | --- | --- |
+| B01 | Enter breakpoints. | **Breakpoints…** in the menu bar and the toolbar's Tools menu opens an editor, hiding and retaining measurements. One `name: 768px` per line; `px` and the trailing `;` are optional. Widths are above 0 up to 100000 CSS px, names are 1–32 ASCII letters, digits, `_` or `-` and unique, with at most 16 breakpoints and 4 KiB. rem, em and other units are rejected with the line number. An invalid draft saves nothing. Use Example fills in Tailwind's default widths in px. The set is an ordinary local preference. |
+| B02 | See them on the top ruler. | While editing, each breakpoint that fits draws a blue mark across the top ruler with a `name 768px` label, at `width × scale` screen points from the display's left edge, which is the ruler's zero. Marks appear only once the scale is explicitly set; until then the ruler shows a single **Set scale to show breakpoints** notice. A label sits right of its mark, or left of it when the next mark or the display edge is in the way; one that would cover another mark or label is left out and its mark stays. Marks are not guides: they cannot be selected, dragged, snapped to, measured, copied or saved in a layout, and they are not drawn when pinned, because the rulers are not. |
+| B03 | Device and breakpoint presets in Resize Window. | The Presets menu lists device classes (four phone, two tablet and two laptop sizes), display sizes, and the user's breakpoints as width-only presets. A preset fills in the fields and nothing changes until **Resize Window**; a breakpoint preset sets the width and leaves the height. Breakpoint widths that are not whole screen points from 1 to 16384 are not offered. Window resizing keeps its existing optional Accessibility requirement and read-back of the accepted size. |
+| B04 | Carry breakpoints in project profiles. | A profile saves and applies breakpoints together with the rem base and spacing scale, and Undo Apply restores all three. The library is written as version 2; version 1 libraries still load, and their profiles read as having no breakpoints, so applying one clears the current breakpoints (recoverable with Undo Apply). The breakpoint editor and Project Profiles close each other, as Spacing Tokens does. Device presets are built in and are not profile settings. |
+
+Implementation: `BreakpointSet`, `BreakpointMarker`, `BreakpointLabelLayout` and `WindowSizePreset` in GuidesCore; `GuidesPreferences` stores the source text under `breakpointsV1`; `OverlayCanvas` draws the marks with the rulers; `BreakpointsController` follows the Spacing Tokens editor. No new permission, capture or network use. Marks are positioned from the confirmed calibration only, consistent with A2. A breakpoint preset treats one CSS px as one screen point, which holds for a browser at 100% zoom, and it sets the window width: a sidebar or scrollbar makes the page's viewport narrower. Device classes are common sizes chosen without an external source and are deliberately not labelled as named models.
+
+Validation: 127 core tests pass, including six new breakpoint tests and one new profile test; the native Debug build passes. Independent review found that the first blue gave white label text only about 3:1 contrast, and that a mark close to the previous one was drawn through that label; the blue is now darker (about 5:1) and label placement moved into GuidesCore with a test that no label covers a mark or another label. Native interaction is unverified; the checks are in TESTING.md. Commit gate: clean independent review of the exact staged diff.
+
+Research: Context7 (`/websites/tailwindcss`) confirmed the default breakpoints [`sm` 40rem (640px), `md` 48rem (768px), `lg` 64rem (1024px), `xl` 80rem (1280px) and `2xl` 96rem (1536px)](https://tailwindcss.com/docs/responsive-design) used by Use Example. Guides accepts px only, because a rem in a media query follows the browser's default font size, not the project's rem base.
 
 Earlier staging, retained for context:
 
