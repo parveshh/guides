@@ -19,6 +19,7 @@ KeyboardShortcuts is pinned to 3.0.1 in the Xcode workspace's resolved package f
 
 1. Choose **Edit Guides** from the menu bar, or use **Control–Option–G**. Editing opens on the display under the pointer.
 2. Pull down from the top ruler for a horizontal guide, or right from the left ruler for a vertical guide. Adjacent distances appear automatically. Click a distance to select it; a nearby readout shows its value and **Copy**. Shift-click two parallel guides to measure their total separation.
+   A guide is a zero-width position at the centre of its line, and a gap is the difference between two positions; the line's width never enters the value. Guides and Area edges placed with the pointer snap to whole backing pixels, so they sit on a pixel boundary. Hold **Control** while dragging to place freely. While you drag, the line drops its dark halo so the pixels beside it stay visible. Snapping does not detect on-screen edges; you still line it up by eye.
 3. Choose **Area** and drag a rectangle. Drag inside to move it; drag an edge or corner handle to resize it. Drawing elsewhere replaces the area in one undoable action. Choose Width, Height, or Both in the nearby readout before copying.
 4. **Pin & work** keeps measurements visible and passes mouse and keyboard input to the app underneath. **Hide** removes the overlay. Use the activation shortcut again to edit retained measurements. While editing, the same shortcut pins them.
 
@@ -34,6 +35,7 @@ Both rulers label screen-point coordinates every 100 points; vertical labels rot
 | Arrow | Move selection by 1 screen point |
 | Shift + Arrow | Move by 10 screen points |
 | Option + Arrow | Move by 1 backing pixel |
+| Control + drag | Place a guide or Area edge without pixel snapping |
 | Delete | Delete selection |
 | Command-C | Copy selected measurement |
 | Command-Z / Shift-Command-Z | Undo / redo |
@@ -114,7 +116,7 @@ Grid units are independent of the measurement readout. Design px and rem require
 
 Spacing must be positive and no more than 1000000 in the chosen unit; opacity is 10–80%. To avoid an unreadably dense overlay, the resulting spacing must be at least 4 screen points and generate no more than 2048 lines per axis. If a later calibration change exceeds those limits, a **Grid paused** badge explains how to recover. No grid lines are silently omitted.
 
-Guides and Area stay usable without snapping to the grid. **Pin & work** keeps the grid visible and passes input to the app below; **Hide** removes the whole overlay. Clear Measurements and measurement undo leave the grid alone. Grid settings are kept per display for the current session; quitting or invalidating a display starts its grid fresh and hidden.
+Guides and Area stay usable without snapping to the grid (they snap only to backing pixels). **Pin & work** keeps the grid visible and passes input to the app below; **Hide** removes the whole overlay. Clear Measurements and measurement undo leave the grid alone. Grid settings are kept per display for the current session; quitting or invalidating a display starts its grid fresh and hidden.
 
 ## Align a reference image
 

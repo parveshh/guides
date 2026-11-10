@@ -374,6 +374,23 @@ Implementation: shared tokens and button styles in `OverlayStyle.swift`, `ToolWi
 
 Validation: 109 core tests and the native Debug build pass. Snapshot renders before and after the change confirm V01–V05 on the current display, and the snapshot run reports matching toolbar host and content widths (1082 points); reference renders are saved in `docs/design/overhaul/`. Snapshots do not exercise popovers, menus, hover, real pointer input, compact displays or VoiceOver; those remain manual checks in TESTING.md. Commit gate: clean independent review of the exact staged diff.
 
+### Pixel snap before A2
+
+On 2026-11-10 the user reported that measuring an element such as a web-page button was not accurate, asked for sticky guides and asked whether the line's width affects the value. Offered a permission-free pixel snap or the gated capture-based edge snapping (B2), the user chose **pixel snap only**. B2 stays gated and unimplemented.
+
+Measurement contract, unchanged: a guide is a zero-width position and a gap is the difference between two positions. The drawn line is centred on its position and its width never enters a value.
+
+| ID | Story | Acceptance |
+| --- | --- | --- |
+| X01 | Place guides on pixel boundaries. | A guide pulled from a ruler, dragged, or added with H/V lands on the nearest whole backing pixel of the active display (every half screen point at 2×). Two snapped guides therefore measure a whole number of backing pixels. |
+| X02 | Place Area edges on pixel boundaries. | Drawing and resizing snap the dragged corner or edge. Moving puts the top-left corner exactly on a boundary and keeps the size, so an Area with a whole-pixel size has all four edges on boundaries. Display-edge clamping still wins. |
+| X03 | Opt out per gesture. | Holding Control during the drag places freely, as before. The hint bar names this. Keyboard nudges, radius and magnifier quarter-point adjustments, saved layouts and existing geometry are not altered or re-snapped. |
+| X04 | See what is being aligned. | While a guide or the Area is being dragged it draws as a bare 1-screen-point core without the dark halo, so the pixels beside the measured position stay visible. The halo and selected weight return on release. |
+
+Implementation: `PixelSnapping` in GuidesCore is arithmetic on overlay coordinates using the display's backing factor; `OverlayCanvas` applies it to guide and Area pointer input only. Annotations, the reference image and the grid are untouched. It reads nothing from the screen, detects no edges and needs no permission; finding the visible edge is still done by eye. No external API was involved, so no Context7 lookup was needed.
+
+Validation: 114 core tests pass, including five new tests for 1×/2×/3× rounding, idempotence and display bounds, invalid input, whole-pixel gaps between snapped guides, and snapped Area moves at the display edge. The native Debug build passes. Pointer behaviour in the running app is unverified by automation; the manual checks are in TESTING.md. Independent review found that a snapped Area move could land one floating-point step off the boundary, and that the halo dropped on press instead of on drag; the move now sets the snapped origin directly, with an exact-equality test, and the bare core appears only once the pointer moves. On a 1× display a 1-point line centred on a pixel boundary is antialiased across two pixels; that drawing is unchanged and unverified here. Commit gate: clean independent review of the exact staged diff.
+
 Earlier staging, retained for context:
 
 | Stage | Features | Trigger |

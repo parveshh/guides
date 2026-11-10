@@ -54,7 +54,7 @@ struct GridEditor: View {
                 Text("Opacity \(Int((opacity * 100).rounded()))%").frame(width: 92, alignment: .leading)
                 Slider(value: $opacity, in: 0.1...0.8, step: 0.05).accessibilityLabel("Grid opacity")
             }
-            Text("Square cells; guides and areas do not snap. Pin & work passes clicks through. Grid settings stay on this display until Guides quits.")
+            Text("Square cells; guides and areas do not snap to the grid. Pin & work passes clicks through. Grid settings stay on this display until Guides quits.")
                 .font(.caption).foregroundStyle(.secondary)
             if let error { Text(error).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
             HStack {

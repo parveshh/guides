@@ -33,11 +33,13 @@ extension OverlayCanvas {
         }
         if model.presentation.tool == .area {
             return [Hint(text: "Editing · Area", essential: true), Hint(keys: ["Drag"], text: "Draw, move or resize"),
+                    Hint(keys: ["⌃", "Drag"], text: "No pixel snap"),
                     Hint(keys: ["Arrows"], text: "Nudge"), Hint(keys: ["⌫"], text: "Delete"),
                     pin, Hint(keys: ["Esc"], text: "Cancel or hide", essential: true)]
         }
         return [Hint(text: "Editing · Guides", essential: true), Hint(keys: ["Drag"], text: "From a ruler"),
                 Hint(keys: ["H", "V"], text: "Add at pointer"), Hint(keys: ["⇧", "Click"], text: "Pair two guides"),
+                Hint(keys: ["⌃", "Drag"], text: "No pixel snap"),
                 Hint(keys: ["Arrows"], text: "Nudge"), Hint(keys: ["⌫"], text: "Delete"),
                 pin, Hint(keys: ["Esc"], text: "Hide", essential: true)]
     }

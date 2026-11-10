@@ -23,6 +23,8 @@ final class OverlayCanvas: NSView {
         case resize(handle: AreaHandle, rect: CGRect)
     }
     private var areaDrag: AreaDrag?
+    /// True once the pointer has moved during a guide or Area gesture; a plain click keeps the halo.
+    private var didDrag = false
     private var labels: [(CGRect, GuideGap)] = []
     private var accessibilityItems: [String: MeasurementAccessibilityElement] = [:]
     private let rulerSize: CGFloat = 24
@@ -45,6 +47,7 @@ final class OverlayCanvas: NSView {
         self.dragStart = nil
         areaDrag = nil
         draggingID = nil
+        didDrag = false
         onChange?()
         return true
     }
@@ -103,7 +106,7 @@ final class OverlayCanvas: NSView {
         case .add(let axis):
             guard let window else { return }
             let point = DisplayGeometry(frame: window.frame).localPoint(fromGlobal: NSEvent.mouseLocation)
-            model.document.add(axis: axis, position: axis.position(of: point))
+            model.document.add(axis: axis, position: PixelSnapping.snap(axis.position(of: point), backingFactor: model.backingFactor))
         case .delete:
             model.document.deleteSelection()
         case .cycle(let backwards, let extending):
@@ -115,6 +118,12 @@ final class OverlayCanvas: NSView {
         }
         model.history.record(before: before, after: model.document)
         onChange?()
+    }
+
+    /// Guides and Area edges placed with the pointer land on whole backing pixels.
+    /// Holding Control places them freely.
+    private func snapped(_ point: CGPoint, for event: NSEvent) -> CGPoint {
+        event.modifierFlags.contains(.control) ? point : PixelSnapping.snap(point, backingFactor: model.backingFactor)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -140,7 +149,7 @@ final class OverlayCanvas: NSView {
                 areaDrag = .move(start: point, rect: area.rect)
                 model.document.selectArea()
             } else {
-                let start = DisplayGeometry.clamp(point, to: bounds.size)
+                let start = snapped(DisplayGeometry.clamp(point, to: bounds.size), for: event)
                 let id = UUID()
                 areaDrag = .create(start: start, id: id)
                 model.document.setArea(CGRect(origin: start, size: .zero), id: id)
@@ -151,7 +160,7 @@ final class OverlayCanvas: NSView {
         if model.presentation.tool == .guides, topRuler.contains(point) || leftRuler.contains(point) {
             dragStart = model.document
             let axis: GuideAxis = topRuler.contains(point) ? .horizontal : .vertical
-            draggingID = model.document.add(axis: axis, position: axis.position(of: point))
+            draggingID = model.document.add(axis: axis, position: axis.position(of: snapped(point, for: event)))
         } else if let (_, gap) = labels.first(where: { $0.0.contains(point) }) {
             model.document.select(gap.ids)
         } else if let guide = model.document.guides.min(by: {
@@ -176,13 +185,18 @@ final class OverlayCanvas: NSView {
             model.annotations.drag(to: current); onChange?(); return
         }
         if let areaDrag {
+            didDrag = true
+            let edge = snapped(current, for: event)
             switch areaDrag {
             case .create(let start, let id):
-                model.document.setArea(AreaGeometry.rectangle(from: start, to: current, within: bounds.size), id: id)
+                model.document.setArea(AreaGeometry.rectangle(from: start, to: edge, within: bounds.size), id: id)
             case .move(let start, let rect):
-                model.document.setArea(AreaGeometry.moved(rect, dx: current.x - start.x, dy: current.y - start.y, within: bounds.size))
+                let dx = current.x - start.x, dy = current.y - start.y
+                model.document.setArea(event.modifierFlags.contains(.control)
+                    ? AreaGeometry.moved(rect, dx: dx, dy: dy, within: bounds.size)
+                    : PixelSnapping.moved(rect, dx: dx, dy: dy, within: bounds.size, backingFactor: model.backingFactor))
             case .resize(let handle, let rect):
-                model.document.setArea(AreaGeometry.resized(rect, handle: handle, to: current, within: bounds.size))
+                model.document.setArea(AreaGeometry.resized(rect, handle: handle, to: edge, within: bounds.size))
                 if let original = dragStart?.area, let area = model.document.area {
                     model.document.setCornerRadius(min(original.cornerRadius, area.maximumRadius))
                 }
@@ -191,8 +205,8 @@ final class OverlayCanvas: NSView {
             return
         }
         guard let id = draggingID, let guide = model.document.guides.first(where: { $0.id == id }) else { return }
-        let point = DisplayGeometry.clamp(convert(event.locationInWindow, from: nil), to: bounds.size)
-        model.document.move(id: id, to: guide.axis.position(of: point))
+        didDrag = true
+        model.document.move(id: id, to: guide.axis.position(of: snapped(current, for: event)))
         onChange?()
     }
 
@@ -210,6 +224,7 @@ final class OverlayCanvas: NSView {
         }
         areaDrag = nil
         draggingID = nil
+        didDrag = false
         dragStart = nil
         onChange?()
     }
@@ -233,7 +248,7 @@ final class OverlayCanvas: NSView {
         for guide in model.document.guides {
             let start = guide.axis == .horizontal ? CGPoint(x: 0, y: guide.position) : CGPoint(x: guide.position, y: 0)
             let end = guide.axis == .horizontal ? CGPoint(x: bounds.width, y: guide.position) : CGPoint(x: guide.position, y: bounds.height)
-            line(from: start, to: end, selected: model.document.selection.contains(guide.id))
+            line(from: start, to: end, selected: model.document.selection.contains(guide.id), placing: didDrag && guide.id == draggingID)
         }
         let selected = model.document.selectedGap
         var availableGaps = model.document.adjacentGaps
@@ -352,9 +367,11 @@ final class OverlayCanvas: NSView {
         let selected = model.document.isAreaSelected
         let path = NSBezierPath(roundedRect: area.rect, xRadius: area.cornerRadius, yRadius: area.cornerRadius)
         let opacity = area.cornerRadius > 0 || model.areaDimension == .radius ? model.radiusOutlineOpacity : 1
-        OverlayStyle.halo.withAlphaComponent(0.45 * opacity).setStroke(); path.lineWidth = 3; path.stroke()
+        // While the Area is being dragged it draws as a bare 1-point core, like a guide being placed.
+        let placing = didDrag && areaDrag != nil
+        if !placing { OverlayStyle.halo.withAlphaComponent(0.45 * opacity).setStroke(); path.lineWidth = 3; path.stroke() }
         OverlayStyle.guide.withAlphaComponent(opacity).setStroke()
-        path.lineWidth = selected ? 2 : 1; path.stroke()
+        path.lineWidth = selected && !placing ? 2 : 1; path.stroke()
         let text = model.areaText(area.rect) + (area.cornerRadius > 0 || model.areaDimension == .radius ? " · R " + model.text(area.cornerRadius) : "")
         if !selected || !model.showsMeasurementReadout {
             drawLabel(text, rect: labelRect(text, centered: CGPoint(x: area.rect.midX, y: area.rect.minY - 18)), selected: selected)
@@ -396,13 +413,17 @@ final class OverlayCanvas: NSView {
     }
 
     /// A pink core over a soft dark halo stays visible on light, dark and busy content.
-    private func line(from start: CGPoint, to end: CGPoint, selected: Bool) {
+    /// While a guide is being placed it draws as a bare 1-point core, so the pixels on
+    /// either side of the measured position stay visible.
+    private func line(from start: CGPoint, to end: CGPoint, selected: Bool, placing: Bool = false) {
         let path = NSBezierPath()
         path.move(to: start); path.line(to: end)
-        let core: CGFloat = selected ? 2 : 1
-        OverlayStyle.halo.setStroke()
-        path.lineWidth = core + 2
-        path.stroke()
+        let core: CGFloat = selected && !placing ? 2 : 1
+        if !placing {
+            OverlayStyle.halo.setStroke()
+            path.lineWidth = core + 2
+            path.stroke()
+        }
         OverlayStyle.guide.setStroke()
         path.lineWidth = core
         path.stroke()
