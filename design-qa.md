@@ -1,5 +1,44 @@
 # Guides native design QA
 
+## Current redesign: selected context bar, 10 November 2026
+
+Source visual truth: [first displayed ImageGen concept](docs/design/ui-exploration-2026-11-10/01-context-bar.png), selected by the user. Implementation: the existing native AppKit/SwiftUI app, using system fonts and SF Symbols.
+
+### Evidence and normalization
+
+- Source image: 1487×1058 pixels. Native view-rendering viewport: 1440×1024 screen points, emitted as 1440×1024 pixels (one output pixel per screen point). The source is normalized to that viewport for [full comparison](docs/design/context-bar/qa-full-comparison.png); this is a proportional comparison, not a pixel-diff claim. CSS viewport/density settings do not apply to this native app.
+- State: Annotate active, a pink rectangle selected, spotlight off. [Native full view with Style](docs/design/context-bar/annotate-with-style.png) combines Guides' own canvas and popover view caches at their actual native window positions. Only synthetic light/blue/dark backdrop bands are used; no desktop pixels are captured. The OS-owned popover shell/arrow is outside its content-view cache.
+- [Focused comparison](docs/design/context-bar/qa-focused-comparison.png) places the reference and native bars together at normalized component widths, then compares the Style content. The actual native Style content is 320×448 pixels. [Measurement strip](docs/design/context-bar/toolbar-measure.png), [annotation strip](docs/design/context-bar/toolbar-annotate.png), [760-point compact layout](docs/design/context-bar/compact-annotate.png) and [pinned view](docs/design/context-bar/pinned.png) cover the other changed surfaces.
+
+### Comparison history and fixes
+
+1. [Initial measurement render](docs/design/context-bar/qa-before-measure.png): Grid clipped to “G…”. Explicit intrinsic sizing now keeps Grid and Reference labels visible. Earlier host-size logs also exposed stale dimensions after switching modes/widths; separate constrained hosting views now settle to the content size in both dimensions.
+2. [Initial annotation render](docs/design/context-bar/qa-before-annotate.png): the native Menu omitted its custom colour well. Replaced it with a visible swatch button and a small palette popover, preserving every existing colour.
+3. The focused Style comparison exposed truncated explanatory text and a system-pink colour that differed from the toolbar accent. Multiline fixed-height text now wraps completely; annotation pink and editing handles use the shared pink. The native popover initially overlapped the selected shape while its hosting view grew; establishing its content size before showing it, with a small lower-edge anchor, now places it below the rectangle. The final full comparison visibly confirms the correction.
+4. Re-rendered the final app and opened both combined comparisons. No actionable P0/P1/P2 visual finding remains in these rendered states.
+
+### Required fidelity surfaces
+
+- **Fonts and typography:** native system font, 13-point control labels, 15-point app name and 16-point Style heading retain the reference's weight hierarchy at a compact native size. Labels and wrapped Style explanations are readable without truncation in the observed states.
+- **Spacing and layout:** a stable charcoal main bar and a narrower detached tool strip follow the selected hierarchy. The main host is 892–893×70 points, including shadow padding; the annotation host is 551×62. At 760 points the main bar splits to 515×108 and the annotation strip stays readable. The settled host/content sizes match, including returning to wide layout. The Style popover sits below the selected rectangle. Both bars disappear when pinned.
+- **Colours and tokens:** opaque charcoal, white labels, pink active mode and a quieter pink subordinate selection follow the reference. Annotation pink now uses the same accent. Transparent remains a labelled checkerboard choice; nothing samples the screen for colour or contrast.
+- **Image quality and assets:** this surface needs no raster assets in the app. Standard SF Symbols and native editable controls supply the reference's icons and shapes. The underlying browser documentation page belongs to the measured app, so it is represented by a synthetic contrast fixture rather than added to Guides.
+- **Copy and content:** Pin & work includes “Click through to your app”. Only relevant units/scale or annotation controls are shown. Style preserves explicit Screen pt stroke units, all palette choices, spotlight defaults, dimming, Delete, and Apply/Cancel. Clear Annotations is in Tools. The shorter annotation hint focuses on the current gesture, pinning and Escape; keyboard behavior and accessibility help retain selection/nudge/delete shortcuts.
+
+Intentional native adaptations: the app keeps its smaller native control size and automatic Select-after-drawing behavior; the mock leaves Rectangle active. Style is taller because existing dimming, defaults, caveat and atomic Apply/Cancel remain available. The reference's decorative drag grip is omitted because the toolbar keeps the existing automatic placement behavior. These differences preserve working behavior and avoid false affordances.
+
+### Validation and limits
+
+The native Debug build and all 127 existing core tests pass. The DEBUG fixture opens a real NSPopover and asserts opening/reopening plus dismissal after selection change, tool switch and Pin. Both strips are rendered at 1440 and 760 points, including the compact-to-wide transition. These are native view/controller checks, not physical input tests.
+
+Live automation attached to an older running copy and returned its old control tree. Its Escape/Hide calls produced no reported change, so it supplies no interaction evidence for this build. Pointer/keyboard operation, popover Apply/Cancel and palette interaction, VoiceOver, real display changes and full-screen/Stage Manager remain manual checks in [TESTING.md](TESTING.md). The comparison passes the rendered design scope; those interaction/platform limits remain explicit.
+
+Implementation checklist: selected structure implemented; native rendering and controller lifecycle checked; visual findings fixed and compared again; exact staged independent review remains the commit gate.
+
+final result: passed
+
+## Previous reviews (retained)
+
 Source: [selected Option 2](docs/design/focus-rail.png). Implementation is native AppKit/SwiftUI, using system fonts and SF Symbols. No website or simulated dashboard was added.
 
 ## Comparison history

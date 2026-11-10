@@ -1,6 +1,7 @@
 import SwiftUI
 import GuidesCore
 
+/// The stable session bar. Active-tool settings live in a smaller, separate strip.
 struct OverlayControls: View {
     var model: EditorModel
     var onRulerAppearance: (RulerAppearance) -> Void
@@ -11,183 +12,98 @@ struct OverlayControls: View {
     var onProjectProfiles: () -> Void
     var onBreakpoints: () -> Void
     var onTool: (OverlayTool) -> Void
-    var onUnit: (MeasurementUnit) -> Void
-    var onCalibration: (Calibration) -> Void
     var onGrid: (GridConfiguration) -> Void
-    var onReferenceOpen: () -> Void
-    var onReferenceApply: (ReferencePlacement) -> Void
-    var onReferenceAlign: () -> Void
-    var onReferenceRemove: () -> Void
-    var onAnnotationTool: (AnnotationTool) -> Void
-    var onAnnotationColor: (AnnotationColor) -> Void
-    var onAnnotationStyle: (AnnotationStyle, Bool, CGFloat) -> Void
-    var onAnnotationDelete: () -> Void
     var onAnnotationClear: () -> Void
     var onUndo: () -> Void
     var onRedo: () -> Void
     var onPin: () -> Void
     var onHide: () -> Void
-    @State private var calibrationPresented = false
-    @State private var gridPresented = false
-    @State private var referencePresented = false
-    @State private var pendingUnit: MeasurementUnit?
 
     var body: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                toolControls.fixedSize(horizontal: true, vertical: false)
-                if !model.controlsCompact { actionControls }
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                Text("Guides").font(.system(size: 15, weight: .semibold)).padding(.horizontal, 6)
+                RailDivider()
+                HStack(spacing: 2) {
+                    ForEach(OverlayTool.allCases, id: \.self) { tool in
+                        Button(tool.rawValue, systemImage: tool.symbol) { onTool(tool) }
+                            .buttonStyle(RailButtonStyle(selected: model.presentation.tool == tool && !model.aligningReference))
+                            .fixedSize().help(tool.summary)
+                            .accessibilityAddTraits(model.presentation.tool == tool && !model.aligningReference ? [.isSelected] : [])
+                    }
+                }.modifier(RailSegments())
+                if !model.controlsCompact { sessionActions }
             }
-            if model.controlsCompact { HStack { Spacer(); actionControls } }
-            if model.isAnnotating {
-                AnnotationControls(model: model, onTool: onAnnotationTool, onColor: onAnnotationColor, onStyle: onAnnotationStyle,
-                    onDelete: onAnnotationDelete, onClear: onAnnotationClear)
-            }
+            if model.controlsCompact { sessionActions }
         }
+        .fixedSize()
         .padding(.horizontal, 14).padding(.vertical, 10)
         .buttonStyle(RailButtonStyle())
         .modifier(OverlaySurface())
         .padding(8)
-        .onChange(of: model.displayID) { _, _ in calibrationPresented = false; gridPresented = false; referencePresented = false }
-        .onChange(of: model.presentation.mode) { _, mode in
-            if mode != .editing { calibrationPresented = false; gridPresented = false; referencePresented = false }
-        }
-        .onChange(of: calibrationPresented) { _, visible in if !visible { pendingUnit = nil } }
     }
 
-    private var toolControls: some View {
-        HStack(spacing: 10) {
+    private var sessionActions: some View {
+        HStack(spacing: 8) {
+            RailDivider()
             Menu {
-                Button("Inspect Image…", systemImage: "photo", action: onInspectImage)
-                Button("Resize Window…", systemImage: "macwindow", action: onResizeWindow)
-                Button("Spacing Tokens…", systemImage: "list.bullet.rectangle", action: onSpacingTokens)
-                Button("Breakpoints…", systemImage: "arrow.left.and.right", action: onBreakpoints)
-                Button("Saved Layouts…", systemImage: "square.stack", action: onSavedLayouts)
-                Button("Project Profiles…", systemImage: "folder", action: onProjectProfiles)
-                Divider()
-                Button(model.grid.isEnabled ? "Hide Grid" : "Show Grid", systemImage: "grid") {
-                    var grid = model.grid
-                    grid.isEnabled.toggle()
-                    onGrid(grid)
+                Section("Local tools") {
+                    Button("Inspect Image…", systemImage: "photo", action: onInspectImage)
+                    Button("Resize Window…", systemImage: "macwindow", action: onResizeWindow)
+                    Button("Spacing Tokens…", systemImage: "list.bullet.rectangle", action: onSpacingTokens)
+                    Button("Breakpoints…", systemImage: "arrow.left.and.right", action: onBreakpoints)
+                    Button("Saved Layouts…", systemImage: "square.stack", action: onSavedLayouts)
+                    Button("Project Profiles…", systemImage: "folder", action: onProjectProfiles)
                 }
-                Divider()
-                Picker("Ruler background", selection: Binding(get: { model.rulerAppearance }, set: { onRulerAppearance($0) })) {
-                    ForEach(RulerAppearance.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                Section("Canvas") {
+                    Button(model.grid.isEnabled ? "Hide Grid" : "Show Grid", systemImage: "grid") {
+                        var grid = model.grid; grid.isEnabled.toggle(); onGrid(grid)
+                    }
+                    Picker("Ruler background", selection: Binding(get: { model.rulerAppearance }, set: { onRulerAppearance($0) })) {
+                        ForEach(RulerAppearance.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }
+                    if model.isAnnotating, !model.annotations.document.shapes.isEmpty {
+                        Button("Clear Annotations", systemImage: "trash", action: onAnnotationClear)
+                    }
                 }
             } label: {
-                Label("Tools", systemImage: "ruler").labelStyle(.titleAndIcon)
+                Label("Tools", systemImage: "square.3.layers.3d")
                     .font(.system(size: 13, weight: .medium)).foregroundStyle(.white)
             }
-            .menuStyle(.borderlessButton).fixedSize()
-            .help("More tools, grid and ruler background (\(model.rulerAppearance.rawValue))")
-            .accessibilityLabel("Tools and ruler appearance")
-            .accessibilityValue(model.rulerAppearance.rawValue)
-            divider
-            HStack(spacing: 2) {
-                ForEach(OverlayTool.allCases, id: \.self) { tool in
-                    Button(tool.rawValue, systemImage: tool.symbol) { calibrationPresented = false; gridPresented = false; referencePresented = false; onTool(tool) }
-                        .buttonStyle(RailButtonStyle(selected: (model.presentation.tool == tool && !model.aligningReference)))
-                        .fixedSize()
-                        .help(tool.summary)
-                        .accessibilityAddTraits((model.presentation.tool == tool && !model.aligningReference) ? [.isSelected] : [])
-                }
-            }.modifier(RailSegments())
-            divider
-            Menu {
-                ForEach(MeasurementUnit.allCases, id: \.self) { unit in
-                    Button(unit.rawValue) { requestUnit(unit) }
-                }
-            } label: {
-                Text(model.unit.rawValue).font(.system(size: 13, weight: .medium))
-            }
-            .menuStyle(.borderlessButton).frame(width: 105, height: 30).padding(.horizontal, 5)
-            .background(OverlayStyle.controlFill, in: RoundedRectangle(cornerRadius: OverlayStyle.controlRadius))
-            .help("Unit shown on measurements and copied values")
-            .accessibilityLabel("Unit").accessibilityValue(model.unit.rawValue)
-            Button(model.calibration.isConfirmed ? "Scale \(MeasurementText.number(model.calibration.pointsPerPixel * 100))%" : "Set scale…") {
-                gridPresented = false
-                referencePresented = false
-                pendingUnit = nil
-                calibrationPresented = true
-            }
-            .buttonStyle(RailButtonStyle(filled: true)).lineLimit(1).frame(width: 120)
-            .help("Tell Guides the zoom of the view you are measuring, for design px and rem")
-            .popover(isPresented: $calibrationPresented) {
-                CalibrationEditor(calibration: model.calibration,
-                    gapDistance: model.document.selectedGap?.distance,
-                    area: model.document.isAreaSelected ? model.document.area?.rect : nil,
-                    onApply: { calibration in
-                        onCalibration(calibration)
-                        if let pendingUnit { onUnit(pendingUnit) }
-                        calibrationPresented = false
-                    }, onCancel: { calibrationPresented = false })
-            }
-        }
-    }
-
-    private var actionControls: some View {
-        HStack(spacing: 8) {
-            Spacer(minLength: 0)
-            Button {
-                calibrationPresented = false
-                referencePresented = false
-                gridPresented = true
-            } label: { Image(systemName: "grid") }
-                .buttonStyle(RailButtonStyle(selected: model.grid.isEnabled))
-                .accessibilityLabel("Grid settings").accessibilityValue(model.grid.isEnabled ? "Shown" : "Hidden")
-                .help("Configure grid spacing, origin and opacity")
-                .popover(isPresented: $gridPresented) {
-                    GridEditor(configuration: model.grid, size: model.document.size, calibration: model.calibration,
-                        backingFactor: model.backingFactor,
-                        onApply: { grid in onGrid(grid); gridPresented = false },
-                        onCancel: { gridPresented = false })
-                }
-            Button {
-                calibrationPresented = false; gridPresented = false
-                referencePresented = true
-            } label: { Image(systemName: "photo.on.rectangle") }
-                .buttonStyle(RailButtonStyle(selected: model.aligningReference))
-                .accessibilityLabel("Reference image")
-                .help("Open and align a local reference image")
-                .popover(isPresented: $referencePresented) {
-                    ReferenceEditor(reference: model.reference, size: model.document.size,
-                        onOpen: { referencePresented = false; onReferenceOpen() },
-                        onApply: { placement in onReferenceApply(placement); referencePresented = false },
-                        onAlign: onReferenceAlign,
-                        onRemove: { onReferenceRemove(); referencePresented = false },
-                        onCancel: { referencePresented = false })
-                        .id(model.reference.overlay?.id)
-                }
+            .menuStyle(.borderlessButton).fixedSize().padding(.horizontal, 6)
+            .help("Local tools, grid visibility and ruler background")
+            .accessibilityLabel("Tools and ruler appearance").accessibilityValue(model.rulerAppearance.rawValue)
+            RailDivider()
             Button(action: onUndo) { Image(systemName: "arrow.uturn.backward") }
-                .disabled(!model.canUndo).help(model.aligningReference ? "Undo reference placement (⌘Z)" : (model.isAnnotating ? "Undo annotation (⌘Z)" : "Undo measurement (⌘Z)")).accessibilityLabel("Undo")
+                .disabled(!model.canUndo).help("Undo (⌘Z)").accessibilityLabel("Undo")
             Button(action: onRedo) { Image(systemName: "arrow.uturn.forward") }
-                .disabled(!model.canRedo).help(model.aligningReference ? "Redo reference placement (⇧⌘Z)" : (model.isAnnotating ? "Redo annotation (⇧⌘Z)" : "Redo measurement (⇧⌘Z)")).accessibilityLabel("Redo")
-            divider
-            Button("Pin & work", systemImage: "pin", action: onPin)
-                .buttonStyle(RailButtonStyle(filled: true)).fixedSize().help("Keep measurements visible and interact with other apps. Use the activation shortcut to edit again.")
+                .disabled(!model.canRedo).help("Redo (⇧⌘Z)").accessibilityLabel("Redo")
+            RailDivider()
+            Button(action: onPin) {
+                HStack(alignment: .top, spacing: 7) {
+                    Image(systemName: "pin")
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Pin & work").font(.system(size: 13, weight: .semibold))
+                        Text("Click through to your app").font(.system(size: 10)).foregroundStyle(OverlayStyle.secondaryText)
+                    }
+                }
+            }
+            .fixedSize().help("Keep marks visible and use other apps. Use the activation shortcut to edit again.")
+            .accessibilityLabel("Pin & work").accessibilityHint("Keep marks visible and pass clicks through to your app")
+            RailDivider()
             Button("Hide", systemImage: "eye.slash", action: onHide)
-                .fixedSize().help("Hide measurements and return to other apps (Escape).")
+                .fixedSize().help("Hide the overlay and return to other apps (Escape)")
         }
     }
+}
 
-    private var divider: some View { Rectangle().fill(OverlayStyle.hairline).frame(width: 1, height: 22) }
-
-    private func requestUnit(_ unit: MeasurementUnit) {
-        if unit.requiresCalibration, !model.calibration.isConfirmed {
-            referencePresented = false; gridPresented = false
-            pendingUnit = unit
-            calibrationPresented = true
-        } else { onUnit(unit) }
-    }
+struct RailDivider: View {
+    var body: some View { Rectangle().fill(OverlayStyle.hairline).frame(width: 1, height: 22) }
 }
 
 private extension OverlayTool {
     var symbol: String {
-        switch self {
-        case .guides: "ruler"
-        case .area: "rectangle.dashed"
-        case .annotate: "pencil.line"
-        }
+        switch self { case .guides: "ruler"; case .area: "rectangle.dashed"; case .annotate: "pencil.line" }
     }
     var summary: String {
         switch self {
@@ -195,87 +111,5 @@ private extension OverlayTool {
         case .area: "Drag a rectangle to read width, height and corner radius"
         case .annotate: "Draw arrows, lines and a spotlight rectangle"
         }
-    }
-}
-
-private struct CalibrationEditor: View {
-    var calibration: Calibration
-    var gapDistance: CGFloat?
-    var area: CGRect?
-    var onApply: (Calibration) -> Void
-    var onCancel: () -> Void
-    @State private var method = 0
-    @State private var percent = "100"
-    @State private var knownPixels = ""
-    @State private var rootPixels = "16"
-    @State private var reference: AreaDimension = .width
-    @State private var error: String?
-
-    private var referenceDistance: CGFloat? {
-        if let gapDistance { return gapDistance }
-        if let area { return reference == .height ? area.height : area.width }
-        return nil
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Measurement scale").font(.headline)
-            Text("Set the scale for the view you are measuring. Update it when the app or zoom changes.")
-                .font(.caption).foregroundStyle(.secondary)
-            Picker("Method", selection: $method) {
-                Text("View scale").tag(0)
-                Text("Known size").tag(1)
-            }.pickerStyle(.segmented)
-            if method == 0 {
-                TextField("View scale (%)", text: $percent)
-                Text("100% means 1 screen point per design pixel.").font(.caption).foregroundStyle(.secondary)
-            } else {
-                if area != nil {
-                    Picker("Reference", selection: $reference) {
-                        Text("Area width").tag(AreaDimension.width)
-                        Text("Area height").tag(AreaDimension.height)
-                    }
-                }
-                if let distance = referenceDistance {
-                    Text("Selected: \(MeasurementText.screenPoints(distance))").font(.caption)
-                } else {
-                    Text("Select a guide distance or an area first.").font(.caption).foregroundStyle(.orange)
-                }
-                TextField("Known size (px)", text: $knownPixels)
-            }
-            TextField("Root font size (px)", text: $rootPixels)
-            Text("The rem base is shared with Settings and saved locally.").font(.caption).foregroundStyle(.secondary)
-            if let error { Text(error).font(.caption).foregroundStyle(.red) }
-            HStack {
-                Button("Cancel", action: onCancel).keyboardShortcut(.cancelAction)
-                Spacer()
-                Button("Apply", action: apply).keyboardShortcut(.defaultAction)
-            }
-        }
-        .textFieldStyle(.roundedBorder)
-        .padding(20).frame(width: 340)
-        .onAppear {
-            percent = String(Double(calibration.pointsPerPixel * 100))
-            rootPixels = String(Double(calibration.rootPixels))
-        }
-        .onSubmit { apply() }
-    }
-
-    private func apply() {
-        var updated = calibration
-        guard let root = Double(rootPixels), updated.setRootPixels(CGFloat(root)) else {
-            error = "Enter a positive, finite root font size."; return
-        }
-        if method == 0 {
-            guard let value = Double(percent), updated.setScale(percent: CGFloat(value)) else {
-                error = "Enter a positive, finite scale percentage."; return
-            }
-        } else {
-            guard let distance = referenceDistance, let value = Double(knownPixels),
-                  updated.setKnownDistance(screenPoints: distance, designPixels: CGFloat(value)) else {
-                error = "Select a nonzero measurement and enter its positive, finite pixel size."; return
-            }
-        }
-        onApply(updated)
     }
 }

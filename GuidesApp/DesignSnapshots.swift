@@ -11,6 +11,7 @@ enum DesignSnapshots {
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             func settle() async { try? await Task.sleep(for: .milliseconds(400)) }
             overlay.edit(.guides)
+            overlay.designSetViewport(CGSize(width: 1440, height: 1024))
             var ids: [UUID] = []
             overlay.designSnapshot("1-guides-solid", to: directory) { model in
                 model.rulerAppearance = .solid
@@ -44,17 +45,27 @@ enum DesignSnapshots {
             overlay.designSnapshot("4-annotate", to: directory) { model in
                 model.grid.isEnabled = false
                 model.presentation.edit(.annotate)
-                for (tool, start, end) in [(AnnotationTool.rectangle, CGPoint(x: 420, y: 300), CGPoint(x: 820, y: 560)),
-                                           (.arrow, CGPoint(x: 1000, y: 640), CGPoint(x: 840, y: 520))] {
+                model.document.clear()
+                for (tool, start, end) in [(AnnotationTool.rectangle, CGPoint(x: 560, y: 330), CGPoint(x: 880, y: 490))] {
                     model.annotations.setTool(tool)
                     model.annotations.begin(at: start); model.annotations.drag(to: end); model.annotations.end()
                 }
+                model.annotations.select(model.annotations.document.shapes.first?.id)
+                model.annotations.apply(style: AnnotationStyle(color: .pink, stroke: .thin), spotlight: false, dimOpacity: 0.55)
             }
             await settle()
             overlay.designSnapshot("4-annotate", to: directory) { _ in }
+            overlay.designSnapshotOptions(to: directory)
             // A compact-to-single-row transition must resize the toolbar host once SwiftUI reports its new ideal size.
-            overlay.designSnapshot("x-compact", to: directory) { $0.presentation.edit(.guides); $0.controlsCompact = true }
-            overlay.designSnapshot("x-single-row", to: directory) { $0.controlsCompact = false }
+            overlay.designSetViewport(CGSize(width: 760, height: 1024))
+            overlay.designSnapshot("x-compact", to: directory) { $0.presentation.edit(.guides) }
+            await settle()
+            overlay.designSnapshot("x-compact", to: directory) { _ in }
+            overlay.designSnapshot("x-compact-annotate", to: directory) { $0.presentation.edit(.annotate) }
+            await settle()
+            overlay.designSnapshot("x-compact-annotate", to: directory) { _ in }
+            overlay.designSetViewport(CGSize(width: 1440, height: 1024))
+            overlay.designSnapshot("x-single-row", to: directory) { $0.presentation.edit(.guides) }
             await settle()
             overlay.designReportToolbar("x-single-row-settled")
             overlay.pin()
@@ -73,7 +84,8 @@ enum DesignSnapshots {
         }
     }
 
-    static func write(_ view: NSView, name: String, to directory: URL, origin: CGPoint = .zero, crop: CGSize, backdrop: Bool) {
+    static func write(_ view: NSView, name: String, to directory: URL, origin: CGPoint = .zero, crop: CGSize, backdrop: Bool,
+                      floatingView: NSView? = nil, floatingRect: CGRect? = nil) {
         guard let source = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
         view.cacheDisplay(in: view.bounds, to: source)
         guard let output = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(crop.width), pixelsHigh: Int(crop.height),
@@ -91,6 +103,14 @@ enum DesignSnapshots {
         } else { NSColor.windowBackgroundColor.setFill(); frame.fill() }
         source.draw(in: frame, from: CGRect(x: origin.x, y: view.bounds.height - crop.height - origin.y, width: crop.width, height: crop.height),
             operation: .sourceOver, fraction: 1, respectFlipped: false, hints: nil)
+        // Composite another Guides-owned view cache, such as a popover, at its actual window position.
+        if let floatingView, let rect = floatingRect,
+           let floating = floatingView.bitmapImageRepForCachingDisplay(in: floatingView.bounds) {
+            floatingView.cacheDisplay(in: floatingView.bounds, to: floating)
+            floating.draw(in: CGRect(x: rect.minX - origin.x, y: crop.height - rect.maxY + origin.y,
+                width: rect.width, height: rect.height), from: floatingView.bounds,
+                operation: .sourceOver, fraction: 1, respectFlipped: false, hints: nil)
+        }
         NSGraphicsContext.restoreGraphicsState()
         try? output.representation(using: .png, properties: [:])?.write(to: directory.appendingPathComponent(name + ".png"))
     }

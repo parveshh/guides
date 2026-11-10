@@ -27,9 +27,10 @@ enum OverlayStyle {
 struct RailButtonStyle: ButtonStyle {
     var selected = false
     var filled = false
+    var selectionTint = false
 
     func makeBody(configuration: Configuration) -> some View {
-        RailButtonBody(configuration: configuration, selected: selected, filled: filled)
+        RailButtonBody(configuration: configuration, selected: selected, filled: filled, selectionTint: selectionTint)
     }
 }
 
@@ -37,11 +38,12 @@ private struct RailButtonBody: View {
     let configuration: ButtonStyle.Configuration
     let selected: Bool
     let filled: Bool
+    let selectionTint: Bool
     @Environment(\.isEnabled) private var enabled
     @State private var hovering = false
 
     private var fill: Color {
-        if selected { return OverlayStyle.accent.opacity(configuration.isPressed ? 0.8 : 1) }
+        if selected { return OverlayStyle.accent.opacity(selectionTint ? 0.28 : (configuration.isPressed ? 0.8 : 1)) }
         if configuration.isPressed { return .white.opacity(0.2) }
         if hovering && enabled { return .white.opacity(0.14) }
         return filled ? OverlayStyle.controlFill : .clear

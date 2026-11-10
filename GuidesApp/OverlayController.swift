@@ -116,11 +116,33 @@ final class OverlayPanel: NSPanel {
 
 /// Reports when SwiftUI changes the toolbar's ideal size.
 @MainActor
-final class ToolbarHostingView: NSHostingView<OverlayControls> {
+final class ToolbarHostingView<Content: View>: NSHostingView<Content> {
     var onIntrinsicSizeChange: (() -> Void)?
     override func invalidateIntrinsicContentSize() {
         super.invalidateIntrinsicContentSize()
         onIntrinsicSizeChange?()
+    }
+}
+
+@MainActor
+private struct ToolbarConstraints {
+    let width: NSLayoutConstraint
+    let height: NSLayoutConstraint
+    let top: NSLayoutConstraint
+    let center: NSLayoutConstraint
+
+    init(view: NSView, root: NSView) {
+        view.translatesAutoresizingMaskIntoConstraints = false
+        width = view.widthAnchor.constraint(equalToConstant: 1)
+        height = view.heightAnchor.constraint(equalToConstant: 1)
+        top = view.topAnchor.constraint(equalTo: root.topAnchor)
+        center = view.centerXAnchor.constraint(equalTo: root.centerXAnchor)
+        NSLayoutConstraint.activate([width, height, top, center])
+    }
+
+    func place(_ frame: CGRect, rootWidth: CGFloat) {
+        width.constant = frame.width; height.constant = frame.height
+        top.constant = frame.minY; center.constant = frame.midX - rootWidth / 2
     }
 }
 
@@ -137,16 +159,18 @@ final class OverlayController {
     private var layoutRecovery = LayoutLoadRecovery()
     private var panel: OverlayPanel?
     private var canvas: OverlayCanvas?
-    private var controls: ToolbarHostingView?
+    private var controls: ToolbarHostingView<OverlayControls>?
+    private var contextControls: ToolbarHostingView<OverlayContextControls>?
+    private var mainConstraints: ToolbarConstraints?
+    private var contextConstraints: ToolbarConstraints?
+    private var annotationPopover: NSPopover?
+    private var annotationPopoverSelection: UUID?
+    private var annotationPopoverDisplay: UInt32?
     private var controlsWidthCheckPending = false
     private var readout: NSHostingView<MeasurementReadout>?
     private var previousApplication: NSRunningApplication?
     private var sessions = DisplaySessions()
     private var referencePicker: NSOpenPanel?
-    private var controlsWidth: NSLayoutConstraint?
-    private var controlsHeight: NSLayoutConstraint?
-    private var controlsTop: NSLayoutConstraint?
-    private var controlsCenterX: NSLayoutConstraint?
 
     init(preferences: GuidesPreferences, onInspectImage: @escaping () -> Void, onResizeWindow: @escaping () -> Void,
          onSpacingTokens: @escaping () -> Void, onSavedLayouts: @escaping () -> Void,
@@ -360,39 +384,43 @@ final class OverlayController {
         let usable = DisplayGeometry(frame: screen.frame).localRect(fromGlobal: screen.visibleFrame)
         canvas?.usableRect = usable
         model.backingFactor = screen.guidesConfiguration?.backingFactor ?? 1
-        // The single-row toolbar needs about 1082 points; narrower displays use a second row.
-        model.controlsCompact = usable.width < 1120
-        updateControlsWidth()
-        controlsHeight?.constant = (model.controlsCompact ? 114 : 70) + (model.isAnnotating ? (model.controlsCompact ? 84 : 44) : 0)
-        controlsTop?.constant = usable.minY + 32
-        panel?.contentView?.layoutSubtreeIfNeeded()
-        if let controls, let canvas { canvas.controlsRect = canvas.convert(controls.bounds, from: controls) }
+        // Leave room for all labels; narrower displays split only the main bar.
+        model.controlsCompact = usable.width < 940
+        layoutControls()
     }
 
-    /// The toolbar hugs its content, so its hit area and the rect other layout avoids match what is drawn.
-    private func updateControlsWidth() {
-        guard let width = controlsTargetWidth else { return }
-        controlsWidth?.constant = width
+    private func layoutControls() {
+        guard let controls, let contextControls, let canvas, let root = panel?.contentView,
+              !model.annotations.isDragging else { return }
+        let available = max(0, canvas.usableRect.width - 32)
+        func size(_ view: NSView) -> CGSize {
+            let ideal = view.intrinsicContentSize
+            return CGSize(width: min(available, max(0, ceil(ideal.width))), height: max(0, ceil(ideal.height)))
+        }
+        let main = size(controls), context = size(contextControls)
+        let combined = CGSize(width: max(main.width, context.width), height: main.height + context.height)
+        let preferred = CGRect(x: canvas.usableRect.midX - combined.width / 2, y: canvas.usableRect.minY + 32,
+            width: combined.width, height: combined.height)
+        let frame = AnnotationGeometry.toolbarFrame(preferred: preferred, usable: canvas.usableRect,
+            spotlight: model.annotations.document.spotlight)
+        mainConstraints?.place(CGRect(x: frame.midX - main.width / 2, y: frame.minY,
+            width: main.width, height: main.height), rootWidth: root.bounds.width)
+        contextConstraints?.place(CGRect(x: frame.midX - context.width / 2, y: frame.minY + main.height,
+            width: context.width, height: context.height), rootWidth: root.bounds.width)
+        // Separate hosting views leave the space around the smaller strip available to the canvas.
+        canvas.controlsRect = frame
     }
 
-    private var controlsTargetWidth: CGFloat? {
-        guard let controls, let canvas else { return nil }
-        let available = max(240, canvas.usableRect.width - 32)
-        let content = ceil(controls.intrinsicContentSize.width)
-        return model.controlsCompact || content <= 0 ? available : min(available, max(240, content))
-    }
-
-    /// SwiftUI publishes a new ideal size one turn after the model changes, for example when a
-    /// display change switches between the one-row and two-row toolbar. Lay out again only if it matters.
+    /// SwiftUI publishes new ideal sizes a turn after tool or compact-layout changes.
     private func controlsContentSizeChanged() {
         guard !controlsWidthCheckPending else { return }
         controlsWidthCheckPending = true
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.controlsWidthCheckPending = false
-            guard let target = self.controlsTargetWidth, let current = self.controlsWidth?.constant,
-                  abs(target - current) >= 1 else { return }
-            self.refresh()
+            self.layoutControls()
+            self.panel?.contentView?.layoutSubtreeIfNeeded()
+            self.positionReadout()
         }
     }
 
@@ -438,6 +466,17 @@ final class OverlayController {
                 self.canvas?.cancelGesture(); self.model.aligningReference = false
                 self.model.presentation.edit(tool); self.refresh()
             },
+            onGrid: { [weak self] grid in
+                self?.canvas?.cancelGesture(); self?.model.grid = grid; self?.refresh()
+            },
+            onAnnotationClear: { [weak self] in self?.editAnnotations { $0.clear() } },
+            onUndo: { [weak self] in self?.undo() }, onRedo: { [weak self] in self?.redo() },
+            onPin: { [weak self] in self?.pin() }, onHide: { [weak self] in self?.hide() }))
+        controls.sizingOptions = [.intrinsicContentSize]
+        controls.onIntrinsicSizeChange = { [weak self] in self?.controlsContentSizeChanged() }
+        root.addSubview(controls)
+        mainConstraints = ToolbarConstraints(view: controls, root: root)
+        let contextControls = ToolbarHostingView(rootView: OverlayContextControls(model: model,
             onUnit: { [weak self] unit in self?.model.unit = unit; self?.refresh() },
             onCalibration: { [weak self] calibration in
                 self?.model.calibration = calibration
@@ -468,26 +507,11 @@ final class OverlayController {
             },
             onAnnotationTool: { [weak self] tool in self?.editAnnotations { $0.setTool(tool) } },
             onAnnotationColor: { [weak self] color in self?.editAnnotations { $0.setColor(color) } },
-            onAnnotationStyle: { [weak self] style, spotlight, opacity in
-                self?.editAnnotations { $0.apply(style: style, spotlight: spotlight, dimOpacity: opacity) }
-            },
-            onAnnotationDelete: { [weak self] in self?.editAnnotations { $0.deleteSelection() } },
-            onAnnotationClear: { [weak self] in self?.editAnnotations { $0.clear() } },
-            onUndo: { [weak self] in self?.undo() }, onRedo: { [weak self] in self?.redo() },
-            onPin: { [weak self] in self?.pin() }, onHide: { [weak self] in self?.hide() }))
-        controls.translatesAutoresizingMaskIntoConstraints = false
-        // Reports the content's ideal size for updateControlsWidth; the explicit constraints still decide the frame.
-        controls.sizingOptions = [.intrinsicContentSize]
-        controls.onIntrinsicSizeChange = { [weak self] in self?.controlsContentSizeChanged() }
-        root.addSubview(controls)
-        controlsWidth = controls.widthAnchor.constraint(equalToConstant: 1000)
-        controlsHeight = controls.heightAnchor.constraint(equalToConstant: 70)
-        controlsTop = controls.topAnchor.constraint(equalTo: root.topAnchor, constant: 40)
-        controlsCenterX = controls.centerXAnchor.constraint(equalTo: root.centerXAnchor)
-        NSLayoutConstraint.activate([
-            controlsCenterX!,
-            controlsTop!, controlsWidth!, controlsHeight!
-        ])
+            onAnnotationOptions: { [weak self] in self?.showAnnotationOptions() }))
+        contextControls.sizingOptions = [.intrinsicContentSize]
+        contextControls.onIntrinsicSizeChange = { [weak self] in self?.controlsContentSizeChanged() }
+        root.addSubview(contextControls)
+        contextConstraints = ToolbarConstraints(view: contextControls, root: root)
         let readout = NSHostingView(rootView: MeasurementReadout(model: model,
             onDimension: { [weak self] dimension in self?.model.areaDimension = dimension; self?.refresh() },
             onRadius: { [weak self] value in
@@ -518,6 +542,7 @@ final class OverlayController {
         self.panel = panel
         self.canvas = canvas
         self.controls = controls
+        self.contextControls = contextControls
         self.readout = readout
     }
 
@@ -571,6 +596,37 @@ final class OverlayController {
         refresh()
     }
 
+    private func showAnnotationOptions() {
+        guard model.isAnnotating, model.presentation.mode == .editing, let canvas, let contextControls else { return }
+        if annotationPopover?.isShown == true { annotationPopover?.close(); return }
+        canvas.cancelGesture()
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = false
+        popover.appearance = NSAppearance(named: .darkAqua)
+        annotationPopoverSelection = model.annotations.document.selectedID
+        annotationPopoverDisplay = model.displayID
+        let options = AnnotationOptions(session: model.annotations,
+            onApply: { [weak self] style, spotlight, opacity in
+                self?.annotationPopover?.close()
+                self?.editAnnotations { $0.apply(style: style, spotlight: spotlight, dimOpacity: opacity) }
+            }, onCancel: { [weak self] in self?.annotationPopover?.close() },
+            onDelete: { [weak self] in
+                self?.annotationPopover?.close(); self?.editAnnotations { $0.deleteSelection() }
+            })
+        let hosting = NSHostingController(rootView: options)
+        popover.contentViewController = hosting
+        popover.contentSize = hosting.view.fittingSize
+        annotationPopover = popover
+        if let shape = model.annotations.document.selected {
+            // A small nonempty anchor keeps the popover beside the lower edge, including for straight lines.
+            let anchor = CGRect(x: shape.bounds.midX - 2, y: min(shape.bounds.maxY, canvas.bounds.maxY - 4), width: 4, height: 4)
+            popover.show(relativeTo: anchor.intersection(canvas.bounds), of: canvas, preferredEdge: .maxY)
+        } else {
+            popover.show(relativeTo: contextControls.bounds, of: contextControls, preferredEdge: .minY)
+        }
+    }
+
     private func cancelReferenceImport() {
         let picker = referencePicker
         referencePicker = nil
@@ -617,18 +673,13 @@ final class OverlayController {
             } catch { model.gridStatus = "Grid paused · " + error.localizedDescription }
         }
         controls?.isHidden = model.presentation.mode != .editing
-        updateControlsWidth()
-        controlsHeight?.constant = (model.controlsCompact ? 114 : 70) + (model.isAnnotating ? (model.controlsCompact ? 84 : 44) : 0)
-        if let canvas, let root = panel?.contentView, !model.annotations.isDragging {
-            let height = controlsHeight?.constant ?? 70, width = controlsWidth?.constant ?? 1000
-            let preferred = CGRect(x: canvas.usableRect.midX - width / 2, y: canvas.usableRect.minY + 32, width: width, height: height)
-            let frame = AnnotationGeometry.toolbarFrame(preferred: preferred, usable: canvas.usableRect,
-                spotlight: model.annotations.document.spotlight)
-            controlsTop?.constant = frame.minY
-            controlsCenterX?.constant = frame.midX - root.bounds.midX
+        contextControls?.isHidden = model.presentation.mode != .editing
+        if !model.isAnnotating || model.presentation.mode != .editing || model.annotations.isDragging
+            || annotationPopoverSelection != model.annotations.document.selectedID || annotationPopoverDisplay != model.displayID {
+            annotationPopover?.close()
         }
+        if !model.annotations.isDragging { layoutControls() }
         panel?.contentView?.layoutSubtreeIfNeeded()
-        if let controls, let canvas { canvas.controlsRect = canvas.convert(controls.bounds, from: controls) }
         canvas?.refreshReferenceImage()
         positionReadout()
         canvas?.updateAccessibility()
@@ -672,10 +723,55 @@ private extension NSScreen {
 
 #if DEBUG
 extension OverlayController {
+    /// A synthetic viewport for repeatable view rendering, independent of attached hardware.
+    func designSetViewport(_ size: CGSize) {
+        panel?.setContentSize(size)
+        canvas?.usableRect = CGRect(origin: .zero, size: size)
+        model.controlsCompact = size.width < 940
+        refresh()
+    }
+
+    func designSnapshotOptions(to directory: URL) {
+        showAnnotationOptions()
+        precondition(annotationPopover?.isShown == true, "Annotation style popover did not open")
+        if let view = annotationPopover?.contentViewController?.view {
+            view.layoutSubtreeIfNeeded()
+            DesignSnapshots.write(view, name: "4-annotation-style", to: directory, crop: view.bounds.size, backdrop: false)
+            if let popupWindow = view.window, let panel, let root = panel.contentView {
+                let global = popupWindow.convertToScreen(view.convert(view.bounds, to: nil))
+                let local = DisplayGeometry(frame: panel.frame).localRect(fromGlobal: global)
+                DesignSnapshots.write(root, name: "4-annotate-with-style", to: directory, crop: root.bounds.size,
+                    backdrop: true, floatingView: view, floatingRect: local)
+            }
+        }
+        let selected = model.annotations.document.selectedID
+        model.annotations.select(nil)
+        refresh()
+        precondition(annotationPopover?.isShown != true, "Style popover survived a selection change")
+        model.annotations.select(selected)
+        showAnnotationOptions()
+        precondition(annotationPopover?.isShown == true, "Style popover did not reopen")
+        model.presentation.edit(.area)
+        refresh()
+        precondition(annotationPopover?.isShown != true, "Style popover survived a tool change")
+        model.presentation.edit(.annotate)
+        showAnnotationOptions()
+        pin()
+        precondition(annotationPopover?.isShown != true, "Style popover survived pinning")
+        model.presentation.edit(.annotate)
+        panel?.editing = true; panel?.ignoresMouseEvents = false
+        refresh()
+        panel?.makeKeyAndOrderFront(nil)
+        print("design-check: native style popover opens, reopens, and closes on selection/tool/pin changes")
+    }
+
     /// Prints the toolbar's hit area against its content width, without triggering layout.
     func designReportToolbar(_ name: String) {
         guard let controls, !controls.isHidden else { return }
-        print("design-snapshot \(name): toolbar host \(controls.frame.width) pt, content \(controls.intrinsicContentSize.width) pt, compact \(model.controlsCompact)")
+        print("design-snapshot \(name): toolbar host \(controls.frame.size), content \(controls.intrinsicContentSize), compact \(model.controlsCompact)")
+        if let contextControls {
+            print("design-snapshot \(name): context host \(contextControls.frame.size), content \(contextControls.intrinsicContentSize)")
+        }
     }
 
 
@@ -685,12 +781,12 @@ extension OverlayController {
         refresh()
         guard let root = panel?.contentView else { return }
         designReportToolbar(name)
-        DesignSnapshots.write(root, name: name, to: directory, crop: CGSize(width: 1320, height: 760), backdrop: true)
-        // The toolbar and hint bar are centred on the display, outside the top-left crop.
+        DesignSnapshots.write(root, name: name, to: directory, crop: root.bounds.size, backdrop: true)
+        // Focused crops keep controls and hints readable alongside the full viewport.
         DesignSnapshots.write(root, name: name + "-toolbar", to: directory,
-            origin: CGPoint(x: root.bounds.midX - 560, y: 0), crop: CGSize(width: 1120, height: 240), backdrop: true)
+            origin: CGPoint(x: max(0, root.bounds.midX - 560), y: 0), crop: CGSize(width: min(1120, root.bounds.width), height: 240), backdrop: true)
         DesignSnapshots.write(root, name: name + "-hints", to: directory,
-            origin: CGPoint(x: root.bounds.midX - 560, y: root.bounds.height - 260), crop: CGSize(width: 1120, height: 260), backdrop: true)
+            origin: CGPoint(x: max(0, root.bounds.midX - 560), y: root.bounds.height - 260), crop: CGSize(width: min(1120, root.bounds.width), height: 260), backdrop: true)
     }
 }
 #endif

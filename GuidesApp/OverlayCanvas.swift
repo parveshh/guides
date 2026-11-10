@@ -242,7 +242,7 @@ final class OverlayCanvas: NSView {
         drawReference()
         drawSpotlight()
         drawGrid()
-        if model.presentation.mode == .editing { drawRulers() }
+        if model.presentation.mode == .editing && !model.isAnnotating { drawRulers() }
         drawGridOrigin()
         drawArea()
         for guide in model.document.guides {
@@ -541,6 +541,7 @@ final class OverlayCanvas: NSView {
 
     private var breakpointStatus: String {
         guard !model.breakpoints.isEmpty else { return "No breakpoints" }
+        guard !model.isAnnotating else { return "Breakpoints hidden while annotating" }
         guard model.calibration.isConfirmed else { return "Breakpoints hidden until the scale is set" }
         let shown = visibleBreakpoints
         if shown.isEmpty { return "No breakpoints fit on this display" }

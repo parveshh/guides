@@ -38,7 +38,7 @@ extension OverlayCanvas {
                 for point in handles {
                     let handle = NSBezierPath(ovalIn: CGRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8))
                     NSColor.white.setFill(); handle.fill()
-                    NSColor.black.setStroke(); handle.lineWidth = 1; handle.stroke()
+                    OverlayStyle.guide.setStroke(); handle.lineWidth = 1; handle.stroke()
                 }
             }
         }
@@ -46,9 +46,9 @@ extension OverlayCanvas {
 }
 
 extension AnnotationColor {
-    var nsColor: NSColor {
+    @MainActor var nsColor: NSColor {
         switch self {
-        case .pink: NSColor.systemPink
+        case .pink: OverlayStyle.guide
         case .yellow: NSColor.systemYellow
         case .cyan: NSColor.cyan
         case .white: NSColor.white

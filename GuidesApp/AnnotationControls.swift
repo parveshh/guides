@@ -3,149 +3,156 @@ import GuidesCore
 
 struct AnnotationControls: View {
     var model: EditorModel
-    let onTool: (AnnotationTool) -> Void
-    let onColor: (AnnotationColor) -> Void
-    let onStyle: (AnnotationStyle, Bool, CGFloat) -> Void
-    let onDelete: () -> Void
-    let onClear: () -> Void
-    @State private var optionsPresented = false
+    var onTool: (AnnotationTool) -> Void
+    var onColor: (AnnotationColor) -> Void
+    var onOptions: () -> Void
+    @State private var colorPresented = false
+
+    private var color: AnnotationColor { model.annotations.document.selected?.style.color ?? model.annotations.style.color }
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                HStack(spacing: 2) {
-                    ForEach(AnnotationTool.allCases, id: \.self) { tool in
-                        Button(tool.rawValue, systemImage: tool.symbol) { onTool(tool) }
-                            .buttonStyle(RailButtonStyle(selected: model.annotations.tool == tool))
-                            .accessibilityLabel("Annotation \(tool.rawValue)")
-                            .accessibilityAddTraits(model.annotations.tool == tool ? [.isSelected] : [])
-                    }
-                }.modifier(RailSegments())
-                if !model.controlsCompact { colorControls }
-                Spacer(minLength: 4)
-                optionsButton
-                if !model.controlsCompact { deleteControls }
-            }
-            if model.controlsCompact {
-                HStack(spacing: 8) {
-                    colorControls
-                    Spacer(minLength: 4)
-                    deleteControls
+        HStack(spacing: 10) {
+            HStack(spacing: 2) {
+                ForEach(AnnotationTool.allCases, id: \.self) { tool in
+                    Button(tool.rawValue, systemImage: tool.symbol) { onTool(tool) }
+                        .buttonStyle(RailButtonStyle(selected: model.annotations.tool == tool, selectionTint: true))
+                        .fixedSize().accessibilityLabel("Annotation \(tool.rawValue)")
+                        .accessibilityAddTraits(model.annotations.tool == tool ? [.isSelected] : [])
                 }
             }
-        }
-        .onChange(of: model.displayID) { _, _ in optionsPresented = false }
-        .onChange(of: model.annotations.document.selectedID) { _, _ in optionsPresented = false }
-        .onChange(of: model.presentation.mode) { _, mode in if mode != .editing { optionsPresented = false } }
-    }
-
-    private var colorControls: some View {
-        HStack(spacing: 4) {
-            Text("Colour").font(.system(size: 11)).foregroundStyle(OverlayStyle.secondaryText).padding(.leading, 6)
-            ForEach(AnnotationColor.allCases, id: \.self) { color in
-                let selected = (model.annotations.document.selected?.style.color ?? model.annotations.style.color) == color
-                Button {
-                    optionsPresented = false
-                    onColor(color)
-                } label: {
-                    colorSwatch(color)
-                        .overlay {
-                            if selected { Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(.black) }
+            RailDivider()
+            Button {
+                colorPresented = true
+            } label: {
+                HStack(spacing: 6) {
+                    AnnotationSwatch(color: color)
+                    Image(systemName: "chevron.down").font(.system(size: 10))
+                }.padding(.horizontal, 4).frame(height: 30)
+            }
+            .buttonStyle(.plain).fixedSize()
+            .accessibilityLabel("Annotation colour").accessibilityValue(color.rawValue)
+            .help("Colour the selection and new annotations")
+            .popover(isPresented: $colorPresented) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Colour").font(.headline).padding(.bottom, 6)
+                    ForEach(AnnotationColor.allCases, id: \.self) { value in
+                        Button {
+                            colorPresented = false; onColor(value)
+                        } label: {
+                            HStack(spacing: 10) {
+                                AnnotationSwatch(color: value)
+                                Text(value.rawValue)
+                                Spacer()
+                                if value == color { Image(systemName: "checkmark") }
+                            }.padding(6).contentShape(Rectangle())
                         }
-                        .frame(width: 30, height: 30)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Annotation colour: \(color.rawValue)")
-                .accessibilityAddTraits(selected ? [.isSelected] : [])
-                .help("\(color.rawValue): colour the selection and new annotations")
+                        .buttonStyle(.plain).accessibilityLabel(value.rawValue)
+                        .accessibilityAddTraits(value == color ? [.isSelected] : [])
+                    }
+                }.padding(16).frame(width: 180).environment(\.colorScheme, .dark)
             }
-        }.fixedSize()
+            RailDivider()
+            Button("Style", systemImage: "slider.horizontal.3", action: onOptions)
+                .fixedSize().help("Outline, stroke and spotlight for the selection or new shapes")
+                .accessibilityLabel("Annotation style and spotlight")
+        }
+        .onChange(of: model.displayID) { _, _ in colorPresented = false }
+        .onChange(of: model.annotations.document.selectedID) { _, _ in colorPresented = false }
+        .onChange(of: model.presentation.mode) { _, mode in if mode != .editing { colorPresented = false } }
     }
+}
 
-    private func colorSwatch(_ color: AnnotationColor) -> some View {
-        VStack(spacing: 0) {
+struct AnnotationSwatch: View {
+    var color: AnnotationColor
+    var body: some View {
+        Group {
             if color == .transparent {
-                HStack(spacing: 0) { Color.white; Color.gray }
-                HStack(spacing: 0) { Color.gray; Color.white }
-            } else {
-                Color(nsColor: color.nsColor)
-            }
+                VStack(spacing: 0) {
+                    HStack(spacing: 0) { Color.white; Color.gray }
+                    HStack(spacing: 0) { Color.gray; Color.white }
+                }
+            } else { Color(nsColor: color.nsColor) }
         }
-        .frame(width: 20, height: 20)
-        .clipShape(Circle())
-        .overlay(Circle().stroke(.white.opacity(0.6), lineWidth: 1))
-    }
-
-    private var optionsButton: some View {
-        Button("Style & spotlight…", systemImage: "slider.horizontal.3") { optionsPresented = true }
-            .buttonStyle(RailButtonStyle(filled: true))
-            .popover(isPresented: $optionsPresented) {
-                AnnotationOptions(session: model.annotations, onApply: { style, spotlight, opacity in
-                    onStyle(style, spotlight, opacity); optionsPresented = false
-                }, onCancel: { optionsPresented = false })
-            }
-    }
-
-    private var deleteControls: some View {
-        HStack(spacing: 8) {
-            Button("Delete", systemImage: "trash", action: onDelete).disabled(model.annotations.document.selected == nil)
-                .accessibilityLabel("Delete selected annotation")
-            Button("Clear", action: onClear).disabled(model.annotations.document.shapes.isEmpty)
-                .accessibilityLabel("Clear annotations").help("Clear annotations and spotlight; retain measurements")
-        }
+        .frame(width: 24, height: 24)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(.white.opacity(0.5), lineWidth: 1))
+        .accessibilityHidden(true)
     }
 }
 
 private extension AnnotationTool {
     var symbol: String {
-        switch self {
-        case .select: "cursorarrow"
-        case .arrow: "arrow.up.right"
-        case .line: "line.diagonal"
-        case .rectangle: "rectangle"
-        }
+        switch self { case .select: "cursorarrow"; case .arrow: "arrow.up.right"; case .line: "line.diagonal"; case .rectangle: "rectangle" }
     }
 }
 
-private struct AnnotationOptions: View {
+/// A draft: Cancel never changes the selected annotation or the defaults.
+struct AnnotationOptions: View {
     let session: AnnotationSession
     let onApply: (AnnotationStyle, Bool, CGFloat) -> Void
     let onCancel: () -> Void
-    @State private var color: AnnotationColor = .pink
-    @State private var stroke: AnnotationStroke = .regular
-    @State private var spotlight = true
-    @State private var opacity = 0.55
+    var onDelete: (() -> Void)? = nil
+    @State private var color: AnnotationColor
+    @State private var stroke: AnnotationStroke
+    @State private var spotlight: Bool
+    @State private var opacity: Double
+
+    init(session: AnnotationSession, onApply: @escaping (AnnotationStyle, Bool, CGFloat) -> Void,
+         onCancel: @escaping () -> Void, onDelete: (() -> Void)? = nil) {
+        self.session = session; self.onApply = onApply; self.onCancel = onCancel; self.onDelete = onDelete
+        let style = session.document.selected?.style ?? session.style
+        _color = State(initialValue: style.color)
+        _stroke = State(initialValue: style.stroke)
+        _spotlight = State(initialValue: session.document.selected?.kind == .rectangle
+            ? session.document.spotlightID == session.document.selectedID : session.newRectanglesSpotlight)
+        _opacity = State(initialValue: Double(session.document.dimOpacity))
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Annotation style").font(.headline)
+        VStack(alignment: .leading, spacing: 16) {
+            Text(session.document.selected?.kind.rawValue ?? "New annotations").font(.system(size: 16, weight: .semibold))
             Text(session.document.selected == nil ? "Style for new shapes" : "Style for the selection and new shapes")
-                .font(.caption).foregroundStyle(.secondary)
-            Picker("Colour", selection: $color) {
-                ForEach(AnnotationColor.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                .font(.caption).foregroundStyle(OverlayStyle.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                Text("Outline").frame(width: 56, alignment: .leading)
+                AnnotationSwatch(color: color)
+                Picker("Colour", selection: $color) {
+                    ForEach(AnnotationColor.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }.labelsHidden().accessibilityLabel("Annotation colour")
             }
             Picker("Stroke", selection: $stroke) {
                 ForEach(AnnotationStroke.allCases, id: \.self) { Text("\($0.rawValue) screen pt").tag($0) }
             }
-            Toggle(session.document.selected?.kind == .rectangle ? "Spotlight selected rectangle" : "Spotlight new rectangles", isOn: $spotlight)
-            Text("Outside dimming: \(Int((opacity * 100).rounded()))%")
+            Divider()
+            Toggle(session.document.selected?.kind == .rectangle ? "Spotlight" : "Spotlight new rectangles", isOn: $spotlight)
+                .toggleStyle(.switch)
+            Text("Dim outside the rectangle").font(.caption).foregroundStyle(OverlayStyle.secondaryText)
+            HStack {
+                Text("Outside dimming").font(.caption)
+                Spacer()
+                Text("\(Int((opacity * 100).rounded()))%").font(.caption).monospacedDigit()
+            }
             Slider(value: $opacity, in: 0...0.8, step: 0.05).accessibilityLabel("Spotlight outside dimming")
             Text("One rectangle is the spotlight. Pin & work passes clicks through inside and outside it.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption).foregroundStyle(OverlayStyle.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+            if let selected = session.document.selected, let onDelete {
+                Divider()
+                Button("Delete \(selected.kind.rawValue.lowercased())", systemImage: "trash", action: onDelete)
+                    .buttonStyle(.plain).accessibilityLabel("Delete selected annotation")
+            }
             HStack {
                 Button("Cancel", action: onCancel).keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Apply") { onApply(AnnotationStyle(color: color, stroke: stroke), spotlight, opacity) }
+                Button("Apply") { onApply(AnnotationStyle(color: color, stroke: stroke), spotlight, CGFloat(opacity)) }
                     .keyboardShortcut(.defaultAction)
             }
-        }.padding(20).frame(width: 340)
-        .onAppear {
-            let style = session.document.selected?.style ?? session.style
-            color = style.color; stroke = style.stroke
-            spotlight = session.document.selected?.kind == .rectangle
-                ? session.document.spotlightID == session.document.selectedID : session.newRectanglesSpotlight
-            opacity = Double(session.document.dimOpacity)
         }
+        .font(.system(size: 13))
+        .padding(20).frame(width: 320)
+        .foregroundStyle(.white)
+        .background(OverlayStyle.surface)
+        .environment(\.colorScheme, .dark)
     }
 }

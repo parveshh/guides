@@ -26,9 +26,8 @@ extension OverlayCanvas {
         }
         if model.isAnnotating {
             let drawing = model.annotations.tool != .select
-            return [Hint(text: "Editing · Annotate · \(model.annotations.tool.rawValue)", essential: true),
+            return [Hint(text: "Annotating · \(model.annotations.tool.rawValue)", essential: true),
                     Hint(keys: ["Drag"], text: drawing ? "Draw" : "Move or resize"),
-                    Hint(keys: ["[", "]"], text: "Select"), Hint(keys: ["Arrows"], text: "Nudge"), Hint(keys: ["⌫"], text: "Delete"),
                     pin, Hint(keys: ["Esc"], text: "Cancel or hide", essential: true)]
         }
         if model.presentation.tool == .area {
