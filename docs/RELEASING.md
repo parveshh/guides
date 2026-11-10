@@ -17,6 +17,8 @@ Before publishing, inspect the ZIP contents, confirm the app version/minimum OS 
 
 For the CLI release, also run `python3 scripts/test-cli.py /absolute/path/to/extracted/Guides.app`. It refuses an existing command server, uses a fresh test process and preserves pre-existing app sessions. Test both extracted launcher locations (`./guides --help` and `./skills/guides/scripts/guides --help`) from a folder without a source checkout or installed app dependency. Check that the copied skill tree matches the reviewed source and the ZIP retains executable permissions. An agent's execution sandbox may need its normal approval path to reach the local Mach port.
 
+Run `python3 scripts/test-single-instance.py /absolute/path/to/extracted/Guides.app [legacy/Guides.app]` for startup fixes. It checks direct/copied launch rejection, native/wrapper reuse, exact session preservation, three waves of six simultaneous starts, crash recovery and cold launch. The optional legacy app must support the 0.2.0 CLI but lack the new startup guard. Tests own their app processes and refuse an existing command server; do not bypass the guard for QA. The package must include the `GuidesSingleInstance` marker, and the updated launcher refuses `launch` against a selected build without it.
+
 ## Publish
 
 Follow the repository's independent review and commit gates first. Push the reviewed commit and a matching version tag using normal pushes. Create a draft GitHub release from the existing remote tag, attach the ZIP and checksum, and use the matching file in `docs/releases/` as its notes. Check the uploaded asset names, sizes and hashes before publishing it as a **pre-release**. Do not overwrite an existing published version.

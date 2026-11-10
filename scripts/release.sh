@@ -22,6 +22,7 @@ case " $architectures " in *' x86_64 '*) ;; *) echo 'Missing x86_64 slice' >&2; 
 codesign --verify --deep --strict "$app"
 test -s "$app/Contents/Resources/ThirdPartyNotices.txt"
 test "$(/usr/libexec/PlistBuddy -c 'Print :GuidesCommandProtocol' "$app/Contents/Info.plist")" = 1
+test "$(/usr/libexec/PlistBuddy -c 'Print :GuidesSingleInstance' "$app/Contents/Info.plist")" = true
 
 # Validate an extracted copy as well as the build product before publishing.
 package_dir=$(mktemp -d "$release_dir/.package.XXXXXX")

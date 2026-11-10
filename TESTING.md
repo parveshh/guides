@@ -2,6 +2,16 @@
 
 Run `./scripts/test.sh` for core tests and `./scripts/build.sh` for the native Apple Silicon Debug app. Xcode and Swift Package Manager need their normal compiler cache access and network access for the pinned package's initial resolution. The app is at `build/DerivedData/Build/Products/Debug/Guides.app`.
 
+## Single-instance fix / preview 0.2.1 (10 November 2026)
+
+- REPRODUCED: the original 0.2.0 app left two direct GUI launches alive, while only the first owned the CLI port. `scripts/test-single-instance.py` failed before the fix with both test PIDs recorded in `build/single-instance-before.log`; it cleaned up its own processes.
+- PASS: 148 core tests, including real kernel-lease contention/recovery, retained inode, and rejection of symlinks/missing directories. Native Debug and universal arm64/x86_64 Release builds pass without app-source warnings. Existing simulator/AppIntents notices are unrelated.
+- PASS on Debug and the extracted Release app: repeated direct and copied-bundle launches exit the duplicate; wrapper/native `launch` return the existing PID; full pinned measurement/calibration/unit/history state stays unchanged. Three waves of six simultaneous starts retain one winner; crash recovery, cold launch and reuse of a running original 0.2.0 app pass. Test processes/copies are owned and cleaned up by the harness; no multi-instance bypass is introduced.
+- FOUND / FIX VERIFIED: the Release cold-start check exposed NSRunningApplication reporting finished before CLI registration. Launch now waits for a read-only CLI reply matching the running PID. The original failing check passes afterward, and repeated launch does not create another GUI while waiting.
+- PASS: complete existing native CLI acceptance on Debug and extracted Release, including calibrated formats, geometry, undo/redo, pin/hide, invalid requests and timeout recovery. Skill validation, shell syntax, local references and packaged-file parity pass.
+- PASS: 0.2.1 build 3, macOS 14.0 minimum, both architectures, command/single-instance capability markers, strict signature, complete skill/launcher/install text, executable modes, no DEBUG fixture strings, dependency notice, ZIP integrity and checksum. The package remains ad hoc signed and non-notarized; uploaded assets/tag/notes are checked at publication time after review/commit.
+- LIMIT: running older binaries cannot be retroactively guarded if independently force-launched; quit old copies once when updating. Existing sessions are never force-terminated by the fix. Only Apple Silicon runtime is verified; Intel/older macOS, physical focus/keyboard input, mixed displays, VoiceOver and the prior locked-screen visual-alignment checks remain manual limits. Short-lived CLI clients are distinct from the one persistent GUI.
+
 ## CLI preview release 0.2.0 (10 November 2026)
 
 - PASS: all 146 core tests and the optimized universal Release build. The extracted app reports version 0.2.0, build 2, minimum macOS 14.0 and command protocol 1; `lipo` confirms arm64 and x86_64. Strict/deep signature verification passes; no valid signing identity is installed, so the app remains ad hoc signed and non-notarized. Runtime verification is on Apple Silicon only.

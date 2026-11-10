@@ -29,7 +29,9 @@ if [ -z "$app" ] || ! is_cli_app "$app"; then
     exit 1
 fi
 if [ "${1:-}" = launch ]; then
-    if [ "$#" -ne 1 ]; then echo 'guides: launch accepts no arguments.' >&2; exit 1; fi
-    exec /usr/bin/open "$app"
+    if [ "$(/usr/libexec/PlistBuddy -c 'Print :GuidesSingleInstance' "$app/Contents/Info.plist" 2>/dev/null)" != true ]; then
+        echo 'guides: Update Guides to a single-instance-enabled build before using launch. Existing commands can still use the running app.' >&2
+        exit 1
+    fi
 fi
 exec "$app/Contents/MacOS/Guides" --cli "$@"

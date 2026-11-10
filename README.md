@@ -22,7 +22,7 @@ Guides measures visible distances manually. It does not read CSS, Figma layers o
 
 ## Download and open
 
-Download [Guides 0.2.0 preview](https://github.com/parveshh/guides/releases/tag/v0.2.0). Choose **Guides-0.2.0-macOS-universal.zip**. It includes **Guides.app**, the **guides** CLI launcher, the agent skill and **INSTALL.txt**; the source-code archives contain source only.
+Download [Guides 0.2.1 preview](https://github.com/parveshh/guides/releases/tag/v0.2.1). Choose **Guides-0.2.1-macOS-universal.zip**. It includes **Guides.app**, the **guides** CLI launcher, the agent skill and **INSTALL.txt**; the source-code archives contain source only.
 
 The build includes **Apple Silicon and Intel** code and requires **macOS 14 or later**. Runtime checks were performed on Apple Silicon; Intel and older supported macOS versions still need testing. Xcode is not needed to run the download.
 
@@ -32,7 +32,7 @@ The build includes **Apple Silicon and Intel** code and requires **macOS 14 or l
 
 This preview is **ad hoc signed, not Developer ID signed or notarized**. macOS may block its first launch. If you trust this download, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm **Open**. See [Apple's instructions](https://support.apple.com/en-us/102445). No security settings are changed by the app or build script.
 
-The release includes a SHA-256 checksum and [release notes](docs/releases/0.2.0.md). To update, quit Guides and replace the app in Applications with the new copy.
+The release includes a SHA-256 checksum and [release notes](docs/releases/0.2.1.md). To update, quit old copies and replace the app in Applications with the new copy.
 
 ## Build from source
 
@@ -65,7 +65,9 @@ Read the [usage guide](docs/USAGE.md) for controls, calibration, all tools and k
 
 ## CLI and agent skill
 
-The **0.2.0 download** includes direct app commands and a `$guides` skill for CLI or computer use. Open its app, then run `./guides --help` from the unzipped folder. **INSTALL.txt** explains adding the launcher to PATH and installing the skill. Quit an older copy only after saving any session you want to keep; the original 0.1.0 app does not support CLI commands.
+The **0.2.1 download** includes direct app commands and a `$guides` skill for CLI or computer use. Open its app, then run `./guides --help` from the unzipped folder. **INSTALL.txt** explains adding the launcher to PATH and installing the skill. Quit old copies once when updating, after saving layouts you want to keep. The original 0.1.0 app does not support CLI commands.
+
+Guides keeps one GUI instance per user. Repeated `guides launch` calls reuse its PID/path and preserve the current session; patched app copies also guard direct and simultaneous launches. The skill attaches to that running path. CLI commands use short-lived client processes without creating another menu or overlay.
 
 From this checkout:
 
@@ -123,7 +125,7 @@ Settings, spacing scales, breakpoints, profiles and saved layouts stay on your M
 
 ## Development status
 
-Guides is an early preview. The core has **146 passing tests**, with native view and event-handler checks. Physical input, VoiceOver and some display/OS scenarios still need manual verification; see [TESTING.md](TESTING.md).
+Guides is an early preview. The core has **148 passing tests**, with native view and event-handler checks. Physical input, VoiceOver and some display/OS scenarios still need manual verification; see [TESTING.md](TESTING.md).
 
 - [Usage guide and examples](docs/USAGE.md)
 - [Validation and remaining checks](TESTING.md)

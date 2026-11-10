@@ -1,6 +1,6 @@
 # Direct CLI
 
-The bundled `scripts/guides` launcher sends commands to the running, CLI-enabled Guides app. It needs macOS 14+ and Guides 0.2.0 or later; the original 0.1.0 download predates this feature. The 0.2.0 release ZIP includes the app, a standalone launcher, this skill and INSTALL.txt without requiring a source checkout. No computer-use tool is needed for CLI commands. Without desktop tools, use supplied coordinates or guide the user through visual alignment; never invent a screen measurement.
+The bundled `scripts/guides` launcher sends commands to the running, CLI-enabled Guides app. Commands need macOS 14+ and Guides 0.2.0 or later; single-instance startup and native `launch` require 0.2.1 or later. The release ZIP includes the app, a standalone launcher, this skill and INSTALL.txt without requiring a source checkout. No computer-use tool is needed for CLI commands. Without desktop tools, use supplied coordinates or guide the user through visual alignment; never invent a screen measurement.
 
 Find the launcher relative to this skill's directory, regardless of the shell's working directory. Invoke its absolute path, or use `guides` if installed on PATH. It resolves `GUIDES_APP` first, then a sibling app in the release package, an app at the package root beside `skills`, a Debug build in this source checkout, `/Applications/Guides.app`, `~/Applications/Guides.app`, and a Release build in this checkout. `GUIDES_APP` is a path to the `.app` bundle, not its executable. The native executable also accepts `--cli COMMAND ...`.
 
@@ -16,7 +16,7 @@ guides read css
 guides pin
 ```
 
-Replace `1` with an actual ID from `displays`. `status.state.appPath` identifies the app that answered; launcher selection does not retarget a running instance. If an older build is running, explain that changing builds requires quitting and losing unsaved session geometry. Do not force-kill it. `launch` opens the selected app; sending any other command does not launch or relaunch it.
+Replace `1` with an actual ID from `displays`. `status.state.appPath` identifies the app that answered; launcher selection does not retarget a running instance. `launch` reuses an already-running Guides app, even at another path, and returns `ok`, `pid`, `appPath` and `alreadyRunning`. It preserves that session's geometry, calibration, tool and pinned/hidden state; when absent it launches the selected app and waits a bounded time for startup. Other commands do not start a GUI. The wrapper rejects `launch` against an older selected executable lacking the single-instance capability marker; existing measurement commands can still connect to an older running server. If changing builds is necessary, explain that quitting loses unsaved session geometry. Never force-kill it or force-start another copy to obtain a desired version.
 
 After a cold launch, the app may need a moment to register the command channel. Retry read-only `status` with a short bounded wait before sending a mutation. Codex's execution sandbox can block local Mach port lookup even when the app is running. If the connection is still missing and the current build is known to be running, use the execution tool's normal approved outside-sandbox path for the CLI and verify with `status`. Do not change Guides' privacy permissions or disable sandbox protections globally. If that execution path is unavailable, use available computer use or explain the connection limit.
 
@@ -25,6 +25,7 @@ After a cold launch, the app may need a moment to register the command channel. 
 | Command | Behavior |
 | --- | --- |
 | `--help` | Local usage; no app connection |
+| `launch` | Open Guides or reuse the running app; return PID/path and whether it was already running |
 | `status` / `displays` | State or attached display IDs, dimensions and backing factors; no geometry changes |
 | `show [guides\|area\|annotate] [DISPLAY_ID]` | Enter editing; with no ID choose the pointer's display, as the UI does |
 | `guide horizontal\|vertical POSITION` | Add/select one guide at a screen-point coordinate |

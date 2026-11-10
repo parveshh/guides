@@ -15,7 +15,7 @@ public enum GuidesCommand: Equatable, Sendable {
 
     public static let help = """
     Usage: guides COMMAND [ARGUMENTS]
-      launch                         Open Guides (launcher script only)
+      launch                         Open Guides or reuse the running app
       status | displays              Read current state or attached displays
       show [guides|area|annotate] [DISPLAY_ID]
       guide horizontal|vertical POSITION

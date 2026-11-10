@@ -53,27 +53,50 @@ final class CommandChannel {
         if arguments.isEmpty || arguments == ["--help"] || arguments == ["help"] {
             print(GuidesCommand.help); return 0
         }
+        if arguments.first == "launch" {
+            guard arguments == ["launch"] else { write(errorData("launch accepts no arguments.")); return 2 }
+            do {
+                write(try JSONSerialization.data(withJSONObject: SingleInstance.launch(), options: [.sortedKeys]))
+                return 0
+            } catch { write(errorData(error.localizedDescription)); return 1 }
+        }
         do {
             _ = try GuidesCommand.parse(arguments)
         } catch {
             write(Self.errorData(error.localizedDescription)); return 2
         }
-        guard let remote = CFMessagePortCreateRemote(nil, name) else {
-            write(errorData("Open the CLI-enabled build of Guides first. Try guides launch; quit older builds only after saving any work. If it is already running, the execution sandbox may block local Mach IPC; use the execution tool's normal approval path.")); return 1
-        }
         do {
-            let request = try JSONEncoder().encode(CommandRequest(version: 1, arguments: arguments))
-            var reply: Unmanaged<CFData>?
-            let result = CFMessagePortSendRequest(remote, 1, request as CFData, 2, 3, CFRunLoopMode.defaultMode.rawValue, &reply)
-            guard result == kCFMessagePortSuccess, let data = reply?.takeRetainedValue() as Data?, data.count <= 1_048_576 else {
-                write(errorData("Command transport failed (\(result)); execution may be uncertain. Check status before retrying a mutation.")); return 1
-            }
+            let data = try request(arguments)
             write(data)
             let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
             return object?["ok"] as? Bool == true ? 0 : 1
         } catch {
             write(errorData(error.localizedDescription)); return 1
         }
+    }
+
+    static func isReady(processIdentifier: pid_t) -> Bool {
+        guard let data = try? request(["status"], sendTimeout: 0.1, receiveTimeout: 0.2),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              object["ok"] as? Bool == true, let state = object["state"] as? [String: Any],
+              let pid = state["pid"] as? NSNumber else { return false }
+        return pid.int32Value == processIdentifier
+    }
+
+    private static func request(_ arguments: [String], sendTimeout: CFTimeInterval = 2,
+                                receiveTimeout: CFTimeInterval = 3) throws -> Data {
+        guard let remote = CFMessagePortCreateRemote(nil, name) else {
+            throw CommandLineError("Open the CLI-enabled build of Guides first. Try guides launch; quit older builds only after saving any work. If it is already running, the execution sandbox may block local Mach IPC; use the execution tool's normal approval path.")
+        }
+        let encoded = try JSONEncoder().encode(CommandRequest(version: 1, arguments: arguments))
+        var reply: Unmanaged<CFData>?
+        let result = CFMessagePortSendRequest(remote, 1, encoded as CFData, sendTimeout, receiveTimeout,
+            CFRunLoopMode.defaultMode.rawValue, &reply)
+        let received = reply?.takeRetainedValue() as Data?
+        guard result == kCFMessagePortSuccess, let data = received, data.count <= 1_048_576 else {
+            throw CommandLineError("Command transport failed (\(result)); execution may be uncertain. Check status before retrying a mutation.")
+        }
+        return data
     }
 
     private static func write(_ data: Data) {
