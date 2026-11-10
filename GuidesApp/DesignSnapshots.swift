@@ -12,6 +12,12 @@ enum DesignSnapshots {
             func settle() async { try? await Task.sleep(for: .milliseconds(400)) }
             overlay.edit(.guides)
             overlay.designSetViewport(CGSize(width: 1440, height: 1024))
+            let documentation = ProcessInfo.processInfo.arguments.contains("--documentation-background")
+            if documentation {
+                overlay.model.spacingScale = .empty
+                overlay.model.breakpoints = .empty
+                overlay.model.calibration.setRootPixels(16)
+            }
             var ids: [UUID] = []
             overlay.designSnapshot("1-guides-solid", to: directory) { model in
                 model.rulerAppearance = .solid
@@ -40,6 +46,12 @@ enum DesignSnapshots {
                 model.unit = .designPixels
                 model.spacingScale = (try? SpacingScale(source: SpacingScale.example + "\n--card: 320px;", tolerance: "1")) ?? .empty
                 model.grid.isEnabled = true
+                if documentation {
+                    model.document.clear()
+                    model.document.setArea(CGRect(x: 640, y: 380, width: 320, height: 200))
+                    model.breakpoints = .empty
+                    model.grid.isEnabled = false
+                }
             }
             await settle()
             overlay.designSnapshot("3-area-tokens", to: directory) { _ in }
@@ -73,7 +85,7 @@ enum DesignSnapshots {
             await settle()
             overlay.designSnapshot("5-pinned", to: directory) { _ in }
             overlay.hide()
-            for (name, show) in windows {
+            for (name, show) in (documentation ? [] : windows) {
                 show()
                 await settle()
                 if let view = NSApp.keyWindow?.contentView ?? NSApp.windows.last(where: { $0.isVisible && $0.styleMask.contains(.titled) })?.contentView {
@@ -97,9 +109,13 @@ enum DesignSnapshots {
         let frame = CGRect(origin: .zero, size: crop)
         if backdrop {
             // Light, mid and dark bands show how overlay elements read over different content.
-            for (index, color) in [NSColor(white: 0.96, alpha: 1), NSColor(srgbRed: 0.33, green: 0.47, blue: 0.72, alpha: 1), NSColor(white: 0.1, alpha: 1)].enumerated() {
+            let colors = ProcessInfo.processInfo.arguments.contains("--documentation-background")
+                ? [NSColor(white: 0.96, alpha: 1)]
+                : [NSColor(white: 0.96, alpha: 1), NSColor(srgbRed: 0.33, green: 0.47, blue: 0.72, alpha: 1), NSColor(white: 0.1, alpha: 1)]
+            for (index, color) in colors.enumerated() {
                 color.setFill()
-                CGRect(x: crop.width * CGFloat(index) / 3, y: 0, width: crop.width / 3, height: crop.height).fill()
+                CGRect(x: crop.width * CGFloat(index) / CGFloat(colors.count), y: 0,
+                    width: crop.width / CGFloat(colors.count), height: crop.height).fill()
             }
         } else { NSColor.windowBackgroundColor.setFill(); frame.fill() }
         source.draw(in: frame, from: CGRect(x: origin.x, y: view.bounds.height - crop.height - origin.y, width: crop.width, height: crop.height),
