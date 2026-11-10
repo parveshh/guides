@@ -2,6 +2,15 @@
 
 Run `./scripts/test.sh` for core tests and `./scripts/build.sh` for the native Apple Silicon Debug app. Xcode and Swift Package Manager need their normal compiler cache access and network access for the pinned package's initial resolution. The app is at `build/DerivedData/Build/Products/Debug/Guides.app`.
 
+## CLI preview release 0.2.0 (10 November 2026)
+
+- PASS: all 146 core tests and the optimized universal Release build. The extracted app reports version 0.2.0, build 2, minimum macOS 14.0 and command protocol 1; `lipo` confirms arm64 and x86_64. Strict/deep signature verification passes; no valid signing identity is installed, so the app remains ad hoc signed and non-notarized. Runtime verification is on Apple Silicon only.
+- PASS: the versioned ZIP contains Guides.app, an executable standalone `guides`, the complete `skills/guides` tree and INSTALL.txt. ZIP integrity, SHA-256 checksum, launcher/skill/install-text parity with source, executable modes, dependency notice and absence of DEBUG fixture strings pass.
+- PASS: both extracted launcher locations discover the packaged app, including from a folder with spaces and a temporary directory outside the source checkout; no installed app or source checkout is required. Explicit GUIDES_APP with spaces, PATH symlink, argument preservation and old-build rejection also pass. The skill validator, shell syntax and Markdown reference checks pass.
+- PASS: the fresh-process native CLI acceptance script against the extracted 0.2.0 app verifies help/errors, display selection, exact gap geometry, explicit-calibration gating, CSS/Tailwind, selection, Area/radius, undo/redo, invalid-geometry preservation, pin/hide, tool gating and timeout recovery. It terminates only its own test process and does not change the pre-existing app session.
+- LIMIT: local extraction and launch do not verify a browser download's Gatekeeper behavior. Intel runtime, older supported macOS, physical input, mixed-display/VoiceOver and the prior locked-screen visual alignment checks remain unverified. The release is a preview, with no updater or new app privacy permission.
+- Publication gate: independently review the exact staged source/docs before commit, push the matching tag, then verify uploaded asset names/sizes/hashes and draft notes before publishing. Publication evidence is verified against GitHub at release time.
+
 ## Direct CLI and Guides skill (10 November 2026)
 
 - PASS: all 146 core tests; seven new tests cover command bounds/invalid syntax, exact coordinates, atomic rejection, one-action gap undo/redo, Area replacement/radius, explicit-calibration gating, existing parallel-guide selection and creation budgets. Negative stored CGRect size is rejected instead of standardized/clipped.

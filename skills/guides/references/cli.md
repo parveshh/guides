@@ -1,8 +1,8 @@
 # Direct CLI
 
-The bundled `scripts/guides` launcher sends commands to the running, CLI-enabled Guides app. It needs macOS 14+ and a build containing the command channel; the original 0.1.0 download predates this feature. No computer-use tool is needed for CLI commands. Without desktop tools, use supplied coordinates or guide the user through visual alignment; never invent a screen measurement.
+The bundled `scripts/guides` launcher sends commands to the running, CLI-enabled Guides app. It needs macOS 14+ and Guides 0.2.0 or later; the original 0.1.0 download predates this feature. The 0.2.0 release ZIP includes the app, a standalone launcher, this skill and INSTALL.txt without requiring a source checkout. No computer-use tool is needed for CLI commands. Without desktop tools, use supplied coordinates or guide the user through visual alignment; never invent a screen measurement.
 
-Find the launcher relative to this skill's directory, regardless of the shell's working directory. Invoke its absolute path, or use `guides` if installed on PATH. It resolves `GUIDES_APP` first, then a Debug build in this source checkout, `/Applications/Guides.app`, `~/Applications/Guides.app`, and a Release build in this checkout. `GUIDES_APP` is a path to the `.app` bundle, not its executable. The native executable also accepts `--cli COMMAND ...`.
+Find the launcher relative to this skill's directory, regardless of the shell's working directory. Invoke its absolute path, or use `guides` if installed on PATH. It resolves `GUIDES_APP` first, then a sibling app in the release package, an app at the package root beside `skills`, a Debug build in this source checkout, `/Applications/Guides.app`, `~/Applications/Guides.app`, and a Release build in this checkout. `GUIDES_APP` is a path to the `.app` bundle, not its executable. The native executable also accepts `--cli COMMAND ...`.
 
 ```sh
 guides launch

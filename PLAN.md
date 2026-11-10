@@ -485,6 +485,16 @@ Release-build evidence: optimized whole-module compilation initially failed beca
 
 Research: Context7 supplied current GitHub CLI draft/create/upload/edit documentation and Apple guidance on universal binaries, Developer ID and notarization. Its Apple result did not cover the full ZIP workflow or user-facing Gatekeeper steps, so those gaps were checked against Apple's packaging documentation, installed command-line help and [current first-open instructions](https://support.apple.com/en-us/102445). The GitHub connector exposes release reads but no binary upload/publication operation; use the authenticated GitHub CLI for those steps. Check the remote tag/commit and uploaded asset hashes before publication. Validation results are recorded in TESTING.md before the commit gate.
 
+### CLI preview release 0.2.0 (10 November 2026)
+
+The user explicitly requested a new GitHub release containing CLI support after the CLI/skill source was pushed as e493291. Publish version 0.2.0 (build 2) as a new pre-release in the same repository after validation, independent staged review, commit and normal pushes of main and the matching tag. Preserve 0.1.0 unchanged. This uses the existing release authorization and changes no app permission/capture/network contract.
+
+Package a universal arm64/x86_64 app for macOS 14+, the standalone `guides` launcher, the complete `skills/guides` folder and versioned install instructions as INSTALL.txt in the app ZIP. The launcher must work from the extracted package without a source checkout, as well as against an installed app or explicit GUIDES_APP. Verify app signature/version/protocol, both architectures, extracted CLI behavior, packaged skill parity, executable permissions and checksums. Keep the original runtime coverage limits and locked-screen visual limit explicit. No signing identity is installed, so this remains ad hoc signed and non-notarized; no installer, updater or new credential is added.
+
+Create a draft from the verified pushed v0.2.0 tag, upload only the reviewed ZIP/checksum, download the uploaded assets and compare integrity before publishing. Context7's official GitHub CLI documentation confirmed `--verify-tag`, `--draft`, `--prerelease`, `--latest=false`, file-based notes, and publishing the existing draft with `--draft=false`. Validation evidence is recorded in TESTING.md before the commit gate.
+
+Validation: all 146 core tests pass, the universal Release app builds and verifies, and the complete 0.2.0 ZIP passes integrity, version/build/minimum-OS/protocol, architecture, packaged-file parity, executable-mode and no-DEBUG checks. Both launchers work with the extracted sibling app from a directory outside the checkout, including paths with spaces. Native CLI acceptance against that extracted app passes without modifying the original session. Skill/shell/document checks pass. Uploaded-asset integrity and remote tag/release checks remain publication-time gates, rather than claims of completed publication. The established signing, hardware and locked-screen visual limits remain explicit.
+
 Earlier staging, retained for context:
 
 | Stage | Features | Trigger |

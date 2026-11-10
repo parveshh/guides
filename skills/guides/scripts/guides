@@ -17,7 +17,8 @@ is_cli_app() {
 }
 app=${GUIDES_APP:-}
 if [ -z "$app" ]; then
-    for candidate in "$checkout/build/DerivedData/Build/Products/Debug/Guides.app" \
+    for candidate in "$directory/Guides.app" "$checkout/Guides.app" \
+        "$checkout/build/DerivedData/Build/Products/Debug/Guides.app" \
         /Applications/Guides.app "$HOME/Applications/Guides.app" \
         "$checkout/build/ReleaseDerivedData/Build/Products/Release/Guides.app"; do
         if is_cli_app "$candidate"; then app=$candidate; break; fi

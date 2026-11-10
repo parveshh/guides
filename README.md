@@ -22,7 +22,7 @@ Guides measures visible distances manually. It does not read CSS, Figma layers o
 
 ## Download and open
 
-Download the app ZIP from [Guides 0.1.0 preview](https://github.com/parveshh/guides/releases/tag/v0.1.0). Choose **Guides-0.1.0-macOS-universal.zip**, rather than the source-code archives.
+Download [Guides 0.2.0 preview](https://github.com/parveshh/guides/releases/tag/v0.2.0). Choose **Guides-0.2.0-macOS-universal.zip**. It includes **Guides.app**, the **guides** CLI launcher, the agent skill and **INSTALL.txt**; the source-code archives contain source only.
 
 The build includes **Apple Silicon and Intel** code and requires **macOS 14 or later**. Runtime checks were performed on Apple Silicon; Intel and older supported macOS versions still need testing. Xcode is not needed to run the download.
 
@@ -32,7 +32,7 @@ The build includes **Apple Silicon and Intel** code and requires **macOS 14 or l
 
 This preview is **ad hoc signed, not Developer ID signed or notarized**. macOS may block its first launch. If you trust this download, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm **Open**. See [Apple's instructions](https://support.apple.com/en-us/102445). No security settings are changed by the app or build script.
 
-The release includes a SHA-256 checksum and [release notes](docs/releases/0.1.0.md). To update, quit Guides and replace the app in Applications with the new copy.
+The release includes a SHA-256 checksum and [release notes](docs/releases/0.2.0.md). To update, quit Guides and replace the app in Applications with the new copy.
 
 ## Build from source
 
@@ -65,7 +65,7 @@ Read the [usage guide](docs/USAGE.md) for controls, calibration, all tools and k
 
 ## CLI and agent skill
 
-The current source includes direct app commands and a `$guides` skill for CLI or computer use. **The 0.1.0 download does not include the CLI**; build the current source first, then open that build of Guides. Quit an older copy only after saving any session you want to keep.
+The **0.2.0 download** includes direct app commands and a `$guides` skill for CLI or computer use. Open its app, then run `./guides --help` from the unzipped folder. **INSTALL.txt** explains adding the launcher to PATH and installing the skill. Quit an older copy only after saving any session you want to keep; the original 0.1.0 app does not support CLI commands.
 
 From this checkout:
 

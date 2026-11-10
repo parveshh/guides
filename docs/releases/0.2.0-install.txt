@@ -1,0 +1,84 @@
+Guides 0.2.0 preview — app, CLI and agent skill
+
+Requires macOS 14 or later. Includes Apple Silicon and Intel code. Runtime checks
+cover Apple Silicon only. Ad hoc signed; not Developer ID signed or notarized.
+No Xcode or source checkout is needed to use this download.
+
+Install the app
+
+1. Quit any older copy of Guides after saving layouts you want to keep. Quitting
+   discards current measurements and calibration.
+2. Drag Guides.app into Applications, replacing an older copy if appropriate.
+3. Open Guides.app. It has a ruler icon in the menu bar and no Dock icon.
+4. If macOS blocks it and you trust this download, try opening it once, then use
+   System Settings > Privacy & Security > Open Anyway and confirm Open.
+   https://support.apple.com/en-us/102445
+   Do not disable Gatekeeper or remove quarantine. Managed Macs may block an exception.
+
+Use the CLI
+
+Open Terminal in the unzipped download folder and run:
+
+    ./guides --help
+    ./guides launch
+    ./guides status
+    ./guides displays
+    ./guides show guides
+    ./guides gap vertical 300 364
+    ./guides read
+    ./guides pin
+
+After launch, retry read-only status briefly if the app is still starting. The gap
+example places a 64-screen-point width at supplied coordinates; it does not detect
+an element or inspect CSS. The CLI communicates with the running Guides instance.
+Check status.state.appPath if another copy is running. Geometry edits require
+Editing in Guides/Area, with no unfinished pointer gesture.
+
+For Design px, rem or CSS/Tailwind output, confirm the actual view scale explicitly
+using calibrate PERCENT. Never assume one screen point equals one CSS pixel.
+
+The launcher finds a sibling Guides.app in this download, an app beside the skill
+package, or an installed app in /Applications or ~/Applications. GUIDES_APP can
+select a full .app path, but does not retarget a different running app instance.
+To invoke the app without the launcher:
+
+    /Applications/Guides.app/Contents/MacOS/Guides --cli status
+
+To make guides available on PATH, copy the guides executable into a directory
+such as ~/.local/bin, and ensure that directory is on PATH. Review any existing
+guides command before replacing it. A copied launcher uses the installed app;
+a symlink into this download requires keeping the download folder in place.
+
+Install the optional Codex skill
+
+Copy the guides folder inside skills into ~/.codex/skills, producing:
+
+    ~/.codex/skills/guides/SKILL.md
+
+Retain or back up an existing Guides skill before replacing it; do not nest a
+second guides folder inside it. The skill also works from a symlink to the
+included skills/guides folder if you keep this download in place.
+
+Invoke $guides in Codex, or from a terminal:
+
+    codex '$guides Use the CLI to place a 64-screen-point vertical guide gap and pin it.'
+
+Single quotes preserve the literal $guides. Restart Codex if the new skill is not
+listed. The skill can use CLI commands or available computer-use tools; a terminal
+session does not automatically provide desktop control. See the bundled
+skills/guides/references/cli.md and computer-use.md for command and UI workflows.
+
+Permissions and integrity
+
+Normal measurement and CLI commands need no Guides privacy grant. An agent's
+execution sandbox may block local Mach messaging; use its normal command-approval
+path when required. Accessibility remains optional for Resize Window, and Screen
+Recording optional for the explicitly started Corner Magnifier. The CLI has no
+permission, capture or cross-app inspection commands and no network listener.
+
+Download Guides-0.2.0-SHA256SUMS.txt beside the ZIP and verify before unzipping:
+
+    shasum -a 256 -c Guides-0.2.0-SHA256SUMS.txt
+
+An OK result verifies file integrity; it does not replace trusted signing or
+notarization. There is no automatic updater: quit and replace the app to update.
