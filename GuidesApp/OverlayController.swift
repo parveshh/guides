@@ -697,7 +697,7 @@ final class OverlayController {
         let gap = model.document.selectedGap
         let anchor: CGPoint
         if let area { anchor = CGPoint(x: area.midX, y: area.midY) }
-        else if let gap { anchor = MeasurementReadoutLayout.gapAnchor(gap, usable: canvas.usableRect, toolbar: canvas.controlsRect) }
+        else if let gap { anchor = canvas.gapAnchor(gap) }
         else { return }
         let valueWidth = (model.selectedText as NSString).size(withAttributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 17, weight: .semibold)]).width
         let contextWidth = (model.contextText as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11)]).width
@@ -706,7 +706,7 @@ final class OverlayController {
         let size = CGSize(width: min(520, max(hasTokens ? 420 : (radius ? 400 : 360), max(valueWidth, contextWidth) + 250)),
             height: (area == nil ? 80 : 124) + (hasTokens ? 100 : 0) + (radius ? 146 : 0))
         let frame = MeasurementReadoutLayout.frame(size: size, anchor: anchor, beside: gap?.axis == .horizontal,
-            usable: canvas.usableRect, toolbar: canvas.controlsRect, area: area)
+            usable: canvas.usableRect, toolbar: canvas.controlsRect, area: area ?? gap.map { canvas.gapLabelRect($0) })
         readout.frame = canvas.convert(frame, to: root)
         readout.isHidden = false
         canvas.readoutRect = frame
@@ -723,6 +723,110 @@ private extension NSScreen {
 
 #if DEBUG
 extension OverlayController {
+    /// Exercises this app's actual event handlers with local NSEvent values; no OS input is posted.
+    func designCheckGapLabels(to directory: URL) async {
+        guard let canvas, let panel, let root = panel.contentView else { preconditionFailure("Missing native canvas") }
+        let originalDocument = model.document, originalHistory = model.history
+        for axis in GuideAxis.allCases {
+            model.document = MeasurementDocument(size: canvas.bounds.size)
+            model.history = DocumentHistory()
+            let first = model.document.add(axis: axis, position: 300)!
+            let second = model.document.add(axis: axis, position: 700)!
+            _ = model.document.add(axis: axis, position: 900)
+            model.document.select([])
+            refresh()
+            try? await Task.sleep(for: .milliseconds(100))
+            canvas.displayIfNeeded()
+            let gap = model.document.adjacentGaps.first!
+            let anchor = canvas.gapAnchor(gap)
+            let start = CGPoint(x: anchor.x + 3, y: anchor.y + 2)
+            let destination = CGPoint(x: start.x + 200, y: start.y + 160)
+            let guides = model.document.guides
+            func event(_ type: NSEvent.EventType, at point: CGPoint) -> NSEvent {
+                NSEvent.mouseEvent(with: type, location: canvas.convert(point, to: nil), modifierFlags: [],
+                    timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: panel.windowNumber,
+                    context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+            }
+            canvas.mouseDown(with: event(.leftMouseDown, at: start))
+            precondition(Set(model.document.selection) == Set([first, second]), "Click did not select the measurement's pair")
+            canvas.mouseDragged(with: event(.leftMouseDragged, at: destination))
+            canvas.mouseUp(with: event(.leftMouseUp, at: destination))
+            let position = (axis == .vertical ? anchor.y + 160 : anchor.x + 200)
+            precondition(model.document.gapLabelPosition(for: gap) == position, "Drag did not lock to the label's axis")
+            precondition(model.document.guides == guides && model.document.selectedGap?.distance == 400, "Label drag moved measured geometry")
+            let moved = model.document
+            let undone = model.history.undo(current: moved)!
+            precondition(undone.gapLabelPosition(for: gap) == nil && !model.history.canUndo, "Drag was not one undo action")
+            model.document = model.history.redo(current: undone)!
+            refresh()
+            try? await Task.sleep(for: .milliseconds(100))
+            canvas.displayIfNeeded()
+            let movedAnchor = canvas.gapAnchor(gap)
+            precondition(root.hitTest(canvas.convert(movedAnchor, to: root)) === canvas, "Copy panel blocks the draggable label")
+            // A second drag proves selecting the chip did not replace/remove its hit target.
+            canvas.mouseDown(with: event(.leftMouseDown, at: movedAnchor))
+            canvas.mouseDragged(with: event(.leftMouseDragged, at: CGPoint(x: movedAnchor.x + 50, y: movedAnchor.y + 50)))
+            precondition(canvas.cancelGesture(), "Escape could not cancel the label drag")
+            precondition(model.document == moved, "Cancel did not restore the label position")
+            for edge in [CGPoint.zero, CGPoint(x: canvas.bounds.maxX, y: canvas.bounds.maxY)] {
+                canvas.displayIfNeeded()
+                let from = canvas.gapAnchor(gap)
+                canvas.mouseDown(with: event(.leftMouseDown, at: from))
+                canvas.mouseDragged(with: event(.leftMouseDragged, at: edge))
+                canvas.mouseUp(with: event(.leftMouseUp, at: edge))
+                let rect = canvas.gapLabelRect(gap), clamped = canvas.gapAnchor(gap)
+                precondition(canvas.usableRect.contains(rect), "Dragged label escaped the usable display")
+                precondition(abs(axis == .vertical ? rect.midY - clamped.y : rect.midX - clamped.x) < 0.001,
+                    "Label drifted off its connector at the display edge")
+                canvas.displayIfNeeded()
+                precondition(root.hitTest(canvas.convert(clamped, to: root)) === canvas, "An overlay control blocks the moved label")
+                precondition(model.document.guides == guides, "Edge clamping moved guides")
+                model.document = model.history.undo(current: model.document)!
+                refresh()
+            }
+            let name = axis == .vertical ? "gap-label-width" : "gap-label-height"
+            designSnapshot(name, to: directory) { _ in }
+        }
+        // Near-edge chips shift inward when drawn; collision checks must use that same shifted rectangle.
+        designSetViewport(CGSize(width: 1024, height: 1024))
+        model.document = MeasurementDocument(size: canvas.bounds.size)
+        model.history = DocumentHistory()
+        _ = model.document.add(axis: .vertical, position: 0)
+        _ = model.document.add(axis: .vertical, position: 2)
+        model.document.select([])
+        refresh()
+        try? await Task.sleep(for: .milliseconds(100))
+        canvas.displayIfNeeded()
+        let edgeGap = model.document.adjacentGaps.first!
+        let edgeStart = canvas.gapAnchor(edgeGap)
+        func edgeEvent(_ type: NSEvent.EventType, at point: CGPoint) -> NSEvent {
+            NSEvent.mouseEvent(with: type, location: canvas.convert(point, to: nil), modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: panel.windowNumber,
+                context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+        }
+        canvas.mouseDown(with: edgeEvent(.leftMouseDown, at: edgeStart))
+        let underBar = CGPoint(x: edgeStart.x, y: 80)
+        canvas.mouseDragged(with: edgeEvent(.leftMouseDragged, at: underBar))
+        canvas.mouseUp(with: edgeEvent(.leftMouseUp, at: underBar))
+        canvas.displayIfNeeded()
+        let edgeRect = canvas.gapLabelRect(edgeGap)
+        precondition(!edgeRect.intersects(canvas.controlsRect.insetBy(dx: -8, dy: -8)), "Edge-shifted label overlaps toolbar")
+        precondition(root.hitTest(canvas.convert(CGPoint(x: edgeRect.midX, y: edgeRect.midY), to: root)) === canvas,
+            "Toolbar intercepts the edge-shifted label")
+        precondition(model.document.selectedGap?.distance == 2, "Narrow boundary check changed the measurement")
+        let beforeStep = canvas.gapAnchor(edgeGap).y
+        precondition(canvas.moveGapLabel(edgeGap, by: 10), "Directional label action failed")
+        precondition(canvas.gapAnchor(edgeGap).y > canvas.controlsRect.maxY, "Directional label action is trapped above the toolbar")
+        precondition(canvas.moveGapLabel(edgeGap, by: -10), "Reverse directional label action failed")
+        precondition(canvas.gapAnchor(edgeGap).y == beforeStep, "Directional label action cannot return across the toolbar")
+        try? await Task.sleep(for: .milliseconds(100))
+        designSnapshot("gap-label-edge", to: directory) { _ in }
+        designSetViewport(CGSize(width: 1440, height: 1024))
+        model.document = originalDocument; model.history = originalHistory
+        refresh()
+        print("design-check: width/height label selection, axis-locked native drags, fixed geometry, undo/redo, repeated dragging, cancellation, edge clamping and unobstructed chip pass")
+    }
+
     /// A synthetic viewport for repeatable view rendering, independent of attached hardware.
     func designSetViewport(_ size: CGSize) {
         panel?.setContentSize(size)

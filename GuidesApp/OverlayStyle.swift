@@ -13,6 +13,7 @@ enum OverlayStyle {
     static let panelRadius: CGFloat = 14
 
     static let guide = NSColor(srgbRed: 1, green: 0.08, blue: 0.53, alpha: 1)
+    static let selectedGuide = NSColor(srgbRed: 0.3, green: 0.85, blue: 1, alpha: 1)
     /// Opaque enough to stay readable over any desktop content without sampling the screen.
     static let chip = NSColor(srgbRed: 0.1, green: 0.1, blue: 0.115, alpha: 0.96)
     /// Breakpoint markers are reference marks, not guides, so they do not use the guide pink.

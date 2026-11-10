@@ -21,6 +21,7 @@ enum DesignSnapshots {
             }
             await settle()
             overlay.designSnapshot("1-guides-solid", to: directory) { _ in }
+            await overlay.designCheckGapLabels(to: directory)
             overlay.designSnapshot("2-guides-transparent", to: directory) { model in
                 model.rulerAppearance = .transparent
                 model.document.select([])

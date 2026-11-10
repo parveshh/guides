@@ -53,6 +53,8 @@ public struct MeasurementDocument: Equatable, Sendable {
     public private(set) var selection: [UUID] = []
     public private(set) var area: AreaMeasurement?
     public private(set) var isAreaSelected = false
+    /// Viewing positions only: keyed by guide identities, independent of ordering and measured geometry.
+    private var gapLabelPositions: [Set<UUID>: CGFloat] = [:]
     public init(size: CGSize) { self.size = size }
 
     @discardableResult
@@ -89,9 +91,25 @@ public struct MeasurementDocument: Equatable, Sendable {
         if isAreaSelected { area = nil; isAreaSelected = false }
         guides.removeAll { selection.contains($0.id) }
         selection = []
+        let remaining = Set(guides.map(\.id))
+        gapLabelPositions = gapLabelPositions.filter { $0.key.isSubset(of: remaining) }
     }
 
-    public mutating func clear() { guides = []; selection = []; area = nil; isAreaSelected = false }
+    public mutating func clear() { guides = []; selection = []; area = nil; isAreaSelected = false; gapLabelPositions = [:] }
+
+    public func gapLabelPosition(for gap: GuideGap) -> CGFloat? { gapLabelPositions[Set(gap.ids)] }
+
+    /// Width labels move vertically, height labels horizontally. Never modifies the guides themselves.
+    public mutating func setGapLabelPosition(_ position: CGFloat?, for gap: GuideGap) {
+        guard gap.first.id != gap.second.id,
+              let first = guides.first(where: { $0.id == gap.first.id }),
+              let second = guides.first(where: { $0.id == gap.second.id }), first.axis == second.axis else { return }
+        let key = Set(gap.ids)
+        guard let position else { gapLabelPositions[key] = nil; return }
+        guard position.isFinite else { return }
+        let limit = first.axis == .vertical ? size.height : size.width
+        gapLabelPositions[key] = min(max(position, 0), limit)
+    }
 
     public mutating func setArea(_ rect: CGRect, id: UUID? = nil) {
         guard [rect.origin.x, rect.origin.y, rect.width, rect.height].allSatisfy(\.isFinite) else { return }
@@ -150,7 +168,7 @@ public struct MeasurementDocument: Equatable, Sendable {
     }
 
     public func hasSameContent(as other: MeasurementDocument) -> Bool {
-        guides == other.guides && area == other.area && size == other.size
+        guides == other.guides && area == other.area && size == other.size && gapLabelPositions == other.gapLabelPositions
     }
 
     public var adjacentGaps: [GuideGap] {

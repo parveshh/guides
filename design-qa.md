@@ -66,3 +66,12 @@ Method: the DEBUG `--design-snapshots <directory>` launch argument renders the o
 Findings fixed during comparison: transparent ticks first rendered as doubled lines on light content (dark halo around a white core), corrected to a dark core over a light halo; the Settings window clipped its last section, corrected by a taller window; toolbar heights were raised for the segmented tracks. Independent review then found the restyled toolbar 64 points wider than its fixed 1000-point host; the toolbar now hugs its content, and the snapshot run prints host and content widths so a recurrence is visible. It also forces a two-row to one-row transition and reports the settled width, which exposed and now guards a one-turn-stale width.
 
 Not covered by renders: popovers, menus, hover, compact displays, light appearance and VoiceOver. See TESTING.md.
+
+
+## Guide-pair label follow-up (10 November 2026)
+
+The user's new request adds cyan boundary association and orthogonally draggable guide-gap labels. [Width](docs/design/gap-labels/width.png) and [height](docs/design/gap-labels/height.png) are 1440×1024, one output pixel per screen point, rendered from the native app's own views over a synthetic contrast fixture. Both were opened and checked: selected guides, connector and chip are cyan; ordinary guides stay pink; the chip remains visible beside its Copy panel; labels are readable with dark text and do not change the measured axis. This is a targeted functional UI update to the selected context-bar design, not a new design direction.
+
+Core tests and local native event-handler checks cover movement, undo/cancel, edge clamping and hit-target clearance. Independent review also caught an edge-clamped label collision mismatch and accessibility steps getting stuck at the toolbar; a shared clamped label rectangle and directional obstacle skipping correct those, with added regression checks. Physical input/cursor feedback and VoiceOver remain manual limits in TESTING.md.
+
+final result: passed

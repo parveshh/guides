@@ -17,6 +17,7 @@ final class OverlayCanvas: NSView {
     private var referenceImage: NSImage?
     private var dragStart: MeasurementDocument?
     private var draggingID: UUID?
+    private var gapLabelDrag: GapLabelDrag?
     private enum AreaDrag {
         case create(start: CGPoint, id: UUID)
         case move(start: CGPoint, rect: CGRect)
@@ -47,6 +48,7 @@ final class OverlayCanvas: NSView {
         self.dragStart = nil
         areaDrag = nil
         draggingID = nil
+        gapLabelDrag = nil
         didDrag = false
         onChange?()
         return true
@@ -139,6 +141,13 @@ final class OverlayCanvas: NSView {
         if model.isAnnotating {
             model.annotations.begin(at: point); onChange?(); return
         }
+        if model.presentation.tool == .guides, let (_, gap) = labels.first(where: { $0.0.contains(point) }) {
+            model.document.select(gap.ids)
+            dragStart = model.document
+            gapLabelDrag = GapLabelDrag(gap: gap, anchor: gapAnchor(gap), start: point)
+            onChange?()
+            return
+        }
         if model.presentation.tool == .area {
             dragStart = model.document
             if let area = model.document.area,
@@ -161,8 +170,6 @@ final class OverlayCanvas: NSView {
             dragStart = model.document
             let axis: GuideAxis = topRuler.contains(point) ? .horizontal : .vertical
             draggingID = model.document.add(axis: axis, position: axis.position(of: snapped(point, for: event)))
-        } else if let (_, gap) = labels.first(where: { $0.0.contains(point) }) {
-            model.document.select(gap.ids)
         } else if let guide = model.document.guides.min(by: {
             abs($0.position - $0.axis.position(of: point)) < abs($1.position - $1.axis.position(of: point))
         }), abs(guide.position - guide.axis.position(of: point)) <= 6 {
@@ -183,6 +190,15 @@ final class OverlayCanvas: NSView {
         }
         if model.annotations.isDragging {
             model.annotations.drag(to: current); onChange?(); return
+        }
+        if let drag = gapLabelDrag {
+            let proposed = gapAnchor(drag.gap, orthogonalPosition: drag.position(at: current))
+            let position = drag.gap.axis == .vertical ? proposed.y : proposed.x
+            let original = drag.gap.axis == .vertical ? drag.anchor.y : drag.anchor.x
+            // Returning to the starting point restores the absence of a custom position too.
+            model.document.setGapLabelPosition(position == original ? dragStart?.gapLabelPosition(for: drag.gap) : position, for: drag.gap)
+            onChange?()
+            return
         }
         if let areaDrag {
             didDrag = true
@@ -224,6 +240,7 @@ final class OverlayCanvas: NSView {
         }
         areaDrag = nil
         draggingID = nil
+        gapLabelDrag = nil
         didDrag = false
         dragStart = nil
         onChange?()
@@ -266,7 +283,7 @@ final class OverlayCanvas: NSView {
         }
         for gap in gaps {
             let selected = Set(gap.ids) == Set(model.document.selection)
-            let anchor = MeasurementReadoutLayout.gapAnchor(gap, usable: usableRect, toolbar: controlsRect)
+            let anchor = gapAnchor(gap)
             let text = model.text(gap.distance)
             let rect = labelRect(text, centered: anchor)
             guard selected || !occupied.contains(where: { $0.intersects(rect) }) else { continue }
@@ -274,10 +291,9 @@ final class OverlayCanvas: NSView {
             let start = gap.axis == .vertical ? CGPoint(x: gap.first.position, y: anchor.y) : CGPoint(x: anchor.x, y: gap.first.position)
             let end = gap.axis == .vertical ? CGPoint(x: gap.second.position, y: anchor.y) : CGPoint(x: anchor.x, y: gap.second.position)
             line(from: start, to: end, selected: selected)
-            if !selected || !model.showsMeasurementReadout {
-                drawLabel(text, rect: rect, selected: selected)
-                labels.append((rect, gap))
-            }
+            // Keep the selected chip as a drag target; the separate Copy panel remains nearby.
+            drawLabel(text, rect: rect, selected: selected, selectionColor: OverlayStyle.selectedGuide)
+            labels.append((rect, gap))
         }
         drawAnnotations()
         drawHints()
@@ -291,6 +307,23 @@ final class OverlayCanvas: NSView {
         if model.grid.isEnabled {
             drawLabel(model.gridStatus,
                 rect: labelRect(model.gridStatus, centered: CGPoint(x: usableRect.midX, y: usableRect.maxY - 64)), selected: false)
+        }
+        window?.invalidateCursorRects(for: self)
+    }
+
+    func gapAnchor(_ gap: GuideGap, orthogonalPosition: CGFloat? = nil) -> CGPoint {
+        let width = min((model.text(gap.distance) as NSString).size(withAttributes: textAttributes).width + 18, usableRect.width)
+        return MeasurementReadoutLayout.gapAnchor(gap, usable: usableRect, toolbar: controlsRect,
+            orthogonalPosition: orthogonalPosition ?? model.document.gapLabelPosition(for: gap),
+            labelSize: CGSize(width: width, height: 24))
+    }
+
+    func gapLabelRect(_ gap: GuideGap) -> CGRect { labelRect(model.text(gap.distance), centered: gapAnchor(gap)) }
+
+    override func resetCursorRects() {
+        guard model.presentation.mode == .editing, model.presentation.tool == .guides, !model.aligningReference else { return }
+        for (rect, gap) in labels {
+            addCursorRect(rect, cursor: gap.axis == .vertical ? .resizeUpDown : .resizeLeftRight)
         }
     }
 
@@ -392,19 +425,18 @@ final class OverlayCanvas: NSView {
 
     private func labelRect(_ text: String, centered point: CGPoint) -> CGRect {
         let size = (text as NSString).size(withAttributes: textAttributes)
-        let width = min(size.width + 18, usableRect.width)
-        return CGRect(x: min(max(point.x - width / 2, usableRect.minX), usableRect.maxX - width),
-                      y: min(max(point.y - 12, usableRect.minY), usableRect.maxY - 24), width: width, height: 24)
+        return MeasurementReadoutLayout.labelFrame(size: CGSize(width: size.width + 18, height: 24), centered: point, usable: usableRect)
     }
 
-    private func drawLabel(_ text: String, rect: CGRect, selected: Bool) {
+    private func drawLabel(_ text: String, rect: CGRect, selected: Bool, selectionColor: NSColor? = nil) {
         let path = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7)
-        (selected ? OverlayStyle.guide : OverlayStyle.chip).setFill()
+        (selected ? (selectionColor ?? OverlayStyle.guide) : OverlayStyle.chip).setFill()
         path.fill()
         (selected ? NSColor(white: 1, alpha: 0.55) : OverlayStyle.chipBorder).setStroke()
         path.lineWidth = 1
         path.stroke()
         var attributes = textAttributes
+        if selected, selectionColor != nil { attributes[.foregroundColor] = NSColor(white: 0.08, alpha: 1) }
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byTruncatingTail
         paragraph.alignment = .center
@@ -424,7 +456,7 @@ final class OverlayCanvas: NSView {
             path.lineWidth = core + 2
             path.stroke()
         }
-        OverlayStyle.guide.setStroke()
+        (selected ? OverlayStyle.selectedGuide : OverlayStyle.guide).setStroke()
         path.lineWidth = core
         path.stroke()
     }
@@ -612,13 +644,20 @@ final class OverlayCanvas: NSView {
         var gaps = model.document.adjacentGaps
         if let selected = model.document.selectedGap, !gaps.contains(where: { Set($0.ids) == Set(selected.ids) }) { gaps.append(selected) }
         for gap in gaps {
-            let anchor = MeasurementReadoutLayout.gapAnchor(gap, usable: usableRect, toolbar: controlsRect)
-            _ = element(gap.ids.map(\.uuidString).joined(), label: "\(gap.axis == .horizontal ? "Vertical" : "Horizontal") gap \(model.text(gap.distance))",
+            let anchor = gapAnchor(gap)
+            let item = element(gap.ids.map(\.uuidString).joined(), label: "\(gap.axis == .horizontal ? "Vertical" : "Horizontal") gap \(model.text(gap.distance))",
                 rect: labelRect(model.text(gap.distance), centered: anchor), selected: Set(gap.ids) == Set(model.document.selection)) { [weak self] in
                     guard let self, self.model.presentation.mode == .editing else { return }
                     self.cancelGesture(); self.model.document.select(gap.ids)
                     self.window?.makeFirstResponder(self); self.onChange?()
                 }
+            item.setAccessibilityHelp(gap.axis == .vertical ? "Drag the label up or down without moving its two guides" : "Drag the label left or right without moving its two guides")
+            item.setAccessibilityCustomActions([-10.0, 10.0].map { delta in
+                let direction = gap.axis == .vertical ? (delta < 0 ? "up" : "down") : (delta < 0 ? "left" : "right")
+                return NSAccessibilityCustomAction(name: "Move label \(direction)", handler: { [weak self] in
+                    self?.moveGapLabel(gap, by: delta) ?? false
+                })
+            })
         }
         if let area = model.document.area {
             _ = element(area.id.uuidString, label: "Area \(model.areaText(area.rect)) · Radius \(model.text(area.cornerRadius))", rect: area.rect, selected: model.document.isAreaSelected) { [weak self] in
@@ -631,6 +670,23 @@ final class OverlayCanvas: NSView {
         accessibilityItems = updated
         setAccessibilityChildren(children)
         if changed { NSAccessibility.post(element: self, notification: .layoutChanged) }
+    }
+
+    @discardableResult
+    func moveGapLabel(_ gap: GuideGap, by delta: CGFloat) -> Bool {
+        guard model.presentation.mode == .editing, !model.isAnnotating, !model.aligningReference else { return false }
+        cancelGesture()
+        model.document.select(gap.ids)
+        let before = model.document
+        let anchor = gapAnchor(gap)
+        let proposed = MeasurementReadoutLayout.nudgedGapAnchor(gap, anchor: anchor, by: delta,
+            usable: usableRect, toolbar: controlsRect, labelSize: gapLabelRect(gap).size)
+        let position = gap.axis == .vertical ? anchor.y : anchor.x
+        let updated = gap.axis == .vertical ? proposed.y : proposed.x
+        if updated != position { model.document.setGapLabelPosition(updated, for: gap) }
+        model.history.record(before: before, after: model.document)
+        window?.makeFirstResponder(self); onChange?()
+        return true
     }
 
     private func selectAccessibleGuide(_ id: UUID, extending: Bool) {

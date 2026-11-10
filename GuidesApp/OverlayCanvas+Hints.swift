@@ -36,6 +36,11 @@ extension OverlayCanvas {
                     Hint(keys: ["Arrows"], text: "Nudge"), Hint(keys: ["⌫"], text: "Delete"),
                     pin, Hint(keys: ["Esc"], text: "Cancel or hide", essential: true)]
         }
+        if let gap = model.document.selectedGap {
+            return [Hint(text: "Selected guides · Cyan", essential: true),
+                    Hint(keys: ["Drag label"], text: gap.axis == .vertical ? "Move up or down" : "Move left or right"),
+                    Hint(keys: ["⌘Z"], text: "Undo"), pin, Hint(keys: ["Esc"], text: "Cancel or hide", essential: true)]
+        }
         return [Hint(text: "Editing · Guides", essential: true), Hint(keys: ["Drag"], text: "From a ruler"),
                 Hint(keys: ["H", "V"], text: "Add at pointer"), Hint(keys: ["⇧", "Click"], text: "Pair two guides"),
                 Hint(keys: ["⌃", "Drag"], text: "No pixel snap"),
