@@ -28,6 +28,11 @@ enum DesignSnapshots {
             await settle()
             overlay.designSnapshot("1-guides-solid", to: directory) { _ in }
             await overlay.designCheckGapLabels(to: directory)
+            if ProcessInfo.processInfo.arguments.contains("--command-checks-only") {
+                print("PASS: native command rejection preserves active width/height drags and their history.")
+                NSApp.terminate(nil)
+                return
+            }
             overlay.designSnapshot("2-guides-transparent", to: directory) { model in
                 model.rulerAppearance = .transparent
                 model.document.select([])

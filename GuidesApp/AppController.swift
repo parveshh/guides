@@ -27,6 +27,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private let projectProfiles = ProjectProfilesController()
     private let breakpoints = BreakpointsController()
     private var settingsWindow: NSWindow?
+    private var commandChannel: CommandChannel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -66,6 +67,10 @@ final class AppController: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(screensChanged),
             name: NSWorkspace.didWakeNotification, object: nil)
         if ProcessInfo.processInfo.arguments.contains("--show-overlay") { editGuides() }
+        commandChannel = CommandChannel { [weak self] command in
+            guard let self else { throw CommandLineError("Guides is closing.") }
+            return try self.overlay.performCommand(command)
+        }
 #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         if let index = arguments.firstIndex(of: "--design-snapshots"), arguments.indices.contains(index + 1) {

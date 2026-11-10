@@ -63,6 +63,41 @@ For CSS pixels or rem, use **Set scale** first. The default **Screen pt** unit m
 
 Read the [usage guide](docs/USAGE.md) for controls, calibration, all tools and keyboard shortcuts.
 
+## CLI and agent skill
+
+The current source includes direct app commands and a `$guides` skill for CLI or computer use. **The 0.1.0 download does not include the CLI**; build the current source first, then open that build of Guides. Quit an older copy only after saving any session you want to keep.
+
+From this checkout:
+
+```sh
+./skills/guides/scripts/guides launch
+./skills/guides/scripts/guides displays
+./skills/guides/scripts/guides show guides
+./skills/guides/scripts/guides gap vertical 300 364
+./skills/guides/scripts/guides read
+./skills/guides/scripts/guides pin
+```
+
+This places a **64-screen-point width** at supplied coordinates; it does not detect a visible element. Commands return JSON. For design pixels or code output, explicitly confirm the view scale with `calibrate PERCENT`, then choose `unit design-px` or `unit rem`. Use `--help` for all commands. See the [CLI reference](skills/guides/references/cli.md) for display selection, units, undo and error handling.
+
+After launch, retry read-only `status` briefly if the app is still starting. An agent's execution sandbox may block local Mach messaging; use its normal command-approval path when needed. No Guides privacy grant is required for the CLI.
+
+To add `guides` to your PATH and install the skill locally, run from the repository root (these links fail safely if a destination already exists):
+
+```sh
+mkdir -p "$HOME/.local/bin" "$HOME/.codex/skills"
+ln -s "$PWD/skills/guides/scripts/guides" "$HOME/.local/bin/guides"
+ln -s "$PWD/skills/guides" "$HOME/.codex/skills/guides"
+```
+
+Ensure `~/.local/bin` is on PATH. Keep this checkout in place while using these links. To use another build, set `GUIDES_APP` to its full `.app` path. The [skill](skills/guides/SKILL.md) includes a computer-use route for visible alignment, annotations and the other local tools; desktop-control tools must be available in that agent session. In Codex, invoke it as `$guides`; from a terminal:
+
+```sh
+codex '$guides Use the CLI to place a 64-screen-point vertical guide gap and pin it.'
+```
+
+Single quotes preserve the literal `$guides`. Local skill discovery and invocation follow [OpenAI's skill documentation](https://learn.chatgpt.com/docs/build-skills). Restart Codex if the newly installed skill is not listed. The CLI uses local Mach messages accessible to processes in your login session. It has no network listener or permission-request commands; optional Accessibility and Screen Recording tools remain in the UI.
+
 ## Things to try
 
 | Use case | Workflow |
@@ -88,7 +123,7 @@ Settings, spacing scales, breakpoints, profiles and saved layouts stay on your M
 
 ## Development status
 
-Guides is an early preview. The core has **139 passing tests**, with native view and event-handler checks. Physical input, VoiceOver and some display/OS scenarios still need manual verification; see [TESTING.md](TESTING.md).
+Guides is an early preview. The core has **146 passing tests**, with native view and event-handler checks. Physical input, VoiceOver and some display/OS scenarios still need manual verification; see [TESTING.md](TESTING.md).
 
 - [Usage guide and examples](docs/USAGE.md)
 - [Validation and remaining checks](TESTING.md)

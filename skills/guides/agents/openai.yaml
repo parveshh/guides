@@ -1,0 +1,4 @@
+interface:
+  display_name: "Guides"
+  short_description: "Measure and mark macOS apps by CLI or computer use"
+  default_prompt: "Use $guides to measure a visible gap and return a calibrated value."

@@ -205,13 +205,13 @@ final class OverlayController {
         }
     }
 
-    func edit(_ tool: OverlayTool) {
+    func edit(_ tool: OverlayTool, on requestedScreen: NSScreen? = nil) {
         model.magnifierPresented = false; model.magnifier.stop()
         cancelReferenceImport()
         canvas?.cancelGesture()
         saveSession()
         layoutRecovery.invalidate(sessions.synchronize(NSScreen.screens.compactMap(\.guidesConfiguration)))
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
+        guard let screen = requestedScreen ?? NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
                 ?? NSScreen.main, let configuration = screen.guidesConfiguration,
               let session = sessions.activate(configuration.id, rootPixels: preferences.rootPixels) else { return }
         let frontmost = NSWorkspace.shared.frontmostApplication
@@ -554,6 +554,75 @@ final class OverlayController {
         refresh()
     }
 
+    func performCommand(_ command: GuidesCommand) throws -> [String: Any] {
+        switch command {
+        case .status: break
+        case .displays:
+            return ["displays": NSScreen.screens.compactMap { screen -> [String: Any]? in
+                guard let configuration = screen.guidesConfiguration else { return nil }
+                return ["id": configuration.id, "name": screen.localizedName, "width": configuration.size.width,
+                        "height": configuration.size.height, "backingFactor": configuration.backingFactor]
+            }]
+        case let .show(tool, displayID):
+            let screen = displayID.flatMap { id in NSScreen.screens.first { $0.guidesConfiguration?.id == id } }
+            guard displayID == nil || screen != nil else { throw CommandLineError("Display is not connected.") }
+            edit(tool, on: screen)
+            guard model.displayID != nil else { throw CommandLineError("No display is available.") }
+        case .hide: hide()
+        case .pin:
+            guard model.presentation.mode == .editing else { throw CommandLineError("Show the overlay before pinning.") }
+            pin()
+        case let .read(format):
+            guard !model.isAnnotating, !model.aligningReference else { throw CommandLineError("Select a measurement in Guides or Area first.") }
+            let value: String?
+            switch format {
+            case "css": value = model.formattedCopy(.css)
+            case "tailwind": value = model.formattedCopy(.tailwind)
+            case "variable": value = model.spacingMatch?.copyReference
+            default: value = model.copyText
+            }
+            guard let value else { throw CommandLineError("No value is available. Check selection, calibration and token match.") }
+            return ["value": value, "state": commandState()]
+        default:
+            guard model.displayID != nil, model.presentation.mode == .editing,
+                  !model.isAnnotating, !model.aligningReference else {
+                throw CommandLineError("Run show guides or show area before editing measurements.")
+            }
+            guard canvas?.hasActiveGesture != true else {
+                throw CommandLineError("Finish or cancel the active pointer gesture before editing measurements through the CLI.")
+            }
+            var session = currentSession()
+            try CommandLineEditing.apply(command, to: &session)
+            model.magnifierPresented = false; model.magnifier.stop()
+            model.document = session.document; model.history = session.history
+            model.calibration = session.calibration; model.unit = session.unit; model.areaDimension = session.areaDimension
+            if preferences.rootPixels != session.calibration.rootPixels { preferences.setRootPixels(session.calibration.rootPixels) }
+            saveSession(); refresh()
+        }
+        return ["state": commandState()]
+    }
+
+    private func commandState() -> [String: Any] {
+        var state: [String: Any] = ["protocolVersion": 1, "pid": ProcessInfo.processInfo.processIdentifier,
+            "appPath": Bundle.main.bundlePath, "mode": model.presentation.mode.rawValue,
+            "tool": model.presentation.tool.rawValue, "coordinateSystem": "display-local top-left screen points",
+            "width": model.document.size.width, "height": model.document.size.height, "backingFactor": model.backingFactor,
+            "unit": model.unit.rawValue, "calibrated": model.calibration.isConfirmed,
+            "scalePercent": model.calibration.pointsPerPixel * 100, "rootPixels": model.calibration.rootPixels,
+            "canUndo": model.history.canUndo, "canRedo": model.history.canRedo,
+            "gestureActive": canvas?.hasActiveGesture ?? false,
+            "guides": model.document.guides.map { ["id": $0.id.uuidString, "axis": $0.axis.rawValue, "position": $0.position] as [String: Any] },
+            "selectedGuideIDs": model.document.selection.map(\.uuidString), "areaSelected": model.document.isAreaSelected,
+            "areaDimension": model.areaDimension.rawValue]
+        state["displayID"] = model.displayID.map { $0 as Any } ?? NSNull()
+        if let area = model.document.area {
+            state["area"] = ["x": area.rect.minX, "y": area.rect.minY, "width": area.rect.width,
+                             "height": area.rect.height, "radius": area.cornerRadius]
+        } else { state["area"] = NSNull() }
+        state["value"] = model.copyText.map { $0 as Any } ?? NSNull()
+        return state
+    }
+
     private func undo() {
         canvas?.cancelGesture()
         if model.aligningReference { model.reference.overlay?.undo() }
@@ -766,6 +835,19 @@ extension OverlayController {
             // A second drag proves selecting the chip did not replace/remove its hit target.
             canvas.mouseDown(with: event(.leftMouseDown, at: movedAnchor))
             canvas.mouseDragged(with: event(.leftMouseDragged, at: CGPoint(x: movedAnchor.x + 50, y: movedAnchor.y + 50)))
+            let liveDocument = model.document
+            let liveUndo = model.history.canUndo, liveRedo = model.history.canRedo
+            for command: GuidesCommand in [.guide(.vertical, -1), .guide(.vertical, 10), .unit(.designPixels)] {
+                do {
+                    _ = try performCommand(command)
+                    preconditionFailure("CLI edited measurements during a pointer gesture")
+                } catch {
+                    precondition(model.document == liveDocument && canvas.hasActiveGesture,
+                        "Rejected CLI command changed the live drag")
+                    precondition(model.history.canUndo == liveUndo && model.history.canRedo == liveRedo,
+                        "Rejected CLI command changed drag history")
+                }
+            }
             precondition(canvas.cancelGesture(), "Escape could not cancel the label drag")
             precondition(model.document == moved, "Cancel did not restore the label position")
             for edge in [CGPoint.zero, CGPoint(x: canvas.bounds.maxX, y: canvas.bounds.maxY)] {

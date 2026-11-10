@@ -34,6 +34,8 @@ final class OverlayCanvas: NSView {
     override var needsPanelToBecomeKey: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
+    var hasActiveGesture: Bool { dragStart != nil || referenceDrag != nil || model.annotations.isDragging }
+
     @discardableResult
     func cancelGesture() -> Bool {
         if model.annotations.cancel() { onChange?(); return true }

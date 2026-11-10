@@ -1,0 +1,34 @@
+#!/bin/sh
+set -eu
+
+# Resolve a PATH symlink without requiring Python or changing the caller's working directory.
+launcher=$0
+while [ -L "$launcher" ]; do
+    directory=$(CDPATH= cd -P "$(dirname "$launcher")" && pwd)
+    target=$(readlink "$launcher")
+    case "$target" in /*) launcher=$target ;; *) launcher=$directory/$target ;; esac
+done
+directory=$(CDPATH= cd -P "$(dirname "$launcher")" && pwd)
+checkout=$(CDPATH= cd "$directory/../../.." && pwd)
+
+is_cli_app() {
+    [ -x "$1/Contents/MacOS/Guides" ] &&
+        [ "$(/usr/libexec/PlistBuddy -c 'Print :GuidesCommandProtocol' "$1/Contents/Info.plist" 2>/dev/null)" = 1 ]
+}
+app=${GUIDES_APP:-}
+if [ -z "$app" ]; then
+    for candidate in "$checkout/build/DerivedData/Build/Products/Debug/Guides.app" \
+        /Applications/Guides.app "$HOME/Applications/Guides.app" \
+        "$checkout/build/ReleaseDerivedData/Build/Products/Release/Guides.app"; do
+        if is_cli_app "$candidate"; then app=$candidate; break; fi
+    done
+fi
+if [ -z "$app" ] || ! is_cli_app "$app"; then
+    echo 'guides: Set GUIDES_APP to a CLI-enabled Guides.app, or build the current source.' >&2
+    exit 1
+fi
+if [ "${1:-}" = launch ]; then
+    if [ "$#" -ne 1 ]; then echo 'guides: launch accepts no arguments.' >&2; exit 1; fi
+    exec /usr/bin/open "$app"
+fi
+exec "$app/Contents/MacOS/Guides" --cli "$@"
