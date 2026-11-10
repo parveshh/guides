@@ -52,6 +52,20 @@ Click the canvas or an accessibility measurement element to focus measurement ke
 
 For example, 64 screen points at 200% scale is `32px`, or `2rem` with a 16px root. The app measures visible boundaries; it cannot infer exact padding, layout tokens, or source properties.
 
+### Copy as CSS or Tailwind
+
+Next to **Copy**, the readout's **Copy as** menu copies the selected measurement as a CSS declaration or a Tailwind arbitrary-value class. Each menu item shows the exact text it copies.
+
+| Selection | CSS | Tailwind |
+| --- | --- | --- |
+| Guide gap | `gap: 24px;` | `gap-[24px]` |
+| Area Width | `width: 320px;` | `w-[320px]` |
+| Area Height | `height: 48px;` | `h-[48px]` |
+| Area Both | `width: 320px;` and `height: 48px;` on two lines | `w-[320px] h-[48px]` |
+| Area Radius | `border-radius: 8px;` | `rounded-[8px]` |
+
+These always use explicitly calibrated values: design px, or rem when the unit is rem, at the precision the readout shows. With Screen pt or Backing px selected they still copy design px. Until you use **Set scale** the menu offers nothing to copy and says why. Tailwind output never uses named scale classes such as `w-80`, because Guides cannot see your theme. The text is a formatted manual measurement, not an inspected CSS property; in particular a guide gap is offered as `gap` only as a starting point, since it could equally be a margin or padding. **Copy** and Command-C are unchanged.
+
 Only one display is active at a time. Each display retains its own in-memory measurements, history, and calibration. Disconnecting a display or changing its logical size/backing scale clears that display's session and hides its overlay. Rearranging displays preserves their local measurements. Sleep hides the overlay; wake rechecks display configuration. Quitting starts all measurements and calibration fresh; the shortcut, root font size, ruler appearance, spacing-scale preferences and explicitly saved layouts remain. Layouts never load automatically.
 
 ## Measure rounded corners

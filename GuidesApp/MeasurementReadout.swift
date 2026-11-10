@@ -8,6 +8,7 @@ struct MeasurementReadout: View {
     var onNudgeArea: (CGFloat, CGFloat) -> Void
     var onOpacity: (CGFloat) -> Void
     var onCopy: () -> Void
+    var onCopyAs: (CopyFormat) -> Void
     var onCopyVariable: () -> Void
 
     var body: some View {
@@ -49,6 +50,7 @@ struct MeasurementReadout: View {
                 Button("Copy", systemImage: "doc.on.doc", action: onCopy)
                     .buttonStyle(RailButtonStyle(filled: true)).fixedSize()
                     .help("Copy selected measurement (Command-C)")
+                copyAsMenu
             }
             if !model.spacingScale.tokens.isEmpty && !(model.document.isAreaSelected && model.areaDimension == .radius) {
                 Divider().overlay(OverlayStyle.hairline)
@@ -76,6 +78,37 @@ struct MeasurementReadout: View {
         .modifier(OverlaySurface())
         .padding(8)
         .onChange(of: model.magnifierPresented) { _, shown in if !shown { model.magnifier.stop() } }
+    }
+}
+
+extension MeasurementReadout {
+    /// CSS and Tailwind forms of the selected measurement. Each item shows exactly what it copies.
+    private var copyAsMenu: some View {
+        let calibrated = model.calibration.isConfirmed
+        let isGap = !model.document.isAreaSelected
+        return Menu {
+            if !calibrated {
+                // Kept as a visible, inert item so the reason is readable without relying on a tooltip.
+                Button("Set scale first. CSS and Tailwind are never copied from an assumed scale.") {}.disabled(true)
+            } else {
+                Section(isGap ? "Manual measurement · gap is a starting point, not an inspected property"
+                              : "Manual measurement · not an inspected CSS property") {
+                    ForEach(CopyFormat.allCases, id: \.self) { format in
+                        if let text = model.formattedCopy(format) {
+                            Button("\(format.rawValue)   \(text.replacingOccurrences(of: "\n", with: " "))") { onCopyAs(format) }
+                                .accessibilityLabel("Copy as \(format.rawValue): \(text.replacingOccurrences(of: "\n", with: " "))")
+                        }
+                    }
+                }
+            }
+        } label: {
+            Text("Copy as").font(.system(size: 13, weight: .medium))
+        }
+        .menuStyle(.borderlessButton).fixedSize().frame(height: 30).padding(.horizontal, 5)
+        .background(OverlayStyle.controlFill, in: RoundedRectangle(cornerRadius: OverlayStyle.controlRadius))
+        .help(calibrated ? "Copy as a CSS declaration or Tailwind class, from the calibrated manual measurement"
+                         : "Set scale to copy CSS or Tailwind. Guides never copies these from an assumed scale.")
+        .accessibilityLabel("Copy as CSS or Tailwind")
     }
 }
 

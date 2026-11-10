@@ -320,7 +320,7 @@ Groups are delivered in order, one reviewed slice per item. Group A needs no new
 | Group | Slice | Summary |
 | --- | --- | --- |
 | A. Front-end loop | A1 Project profiles | Named local sets of rem base and spacing scale, applied explicitly. Later slices add their settings to the profile. |
-| | A2 Copy formats | Copy a measurement as CSS declarations (`width`, `height`, `border-radius`, gap) and Tailwind classes, from calibrated values only. |
+| | A2 Copy formats (done) | Copy a measurement as CSS declarations (`width`, `height`, `border-radius`, gap) and Tailwind classes, from calibrated values only. |
 | | A3 Breakpoints and device presets | User-supplied breakpoint markers on the top ruler; device sizes in Resize Window. |
 | | A4 Column grid | Columns, gutters and margins alongside the square grid. |
 | | A5 Calculators | `clamp()` fluid sizing, px/rem/em/vw conversion, aspect-ratio lock for Area. |
@@ -390,6 +390,23 @@ Measurement contract, unchanged: a guide is a zero-width position and a gap is t
 Implementation: `PixelSnapping` in GuidesCore is arithmetic on overlay coordinates using the display's backing factor; `OverlayCanvas` applies it to guide and Area pointer input only. Annotations, the reference image and the grid are untouched. It reads nothing from the screen, detects no edges and needs no permission; finding the visible edge is still done by eye. No external API was involved, so no Context7 lookup was needed.
 
 Validation: 114 core tests pass, including five new tests for 1×/2×/3× rounding, idempotence and display bounds, invalid input, whole-pixel gaps between snapped guides, and snapped Area moves at the display edge. The native Debug build passes. Pointer behaviour in the running app is unverified by automation; the manual checks are in TESTING.md. Independent review found that a snapped Area move could land one floating-point step off the boundary, and that the halo dropped on press instead of on drag; the move now sets the snapped origin directly, with an exact-equality test, and the bare core appears only once the pointer moves. On a 1× display a 1-point line centred on a pixel boundary is antialiased across two pixels; that drawing is unchanged and unverified here. Commit gate: clean independent review of the exact staged diff.
+
+### Slice A2: copy formats
+
+On 2026-11-10 the user confirmed the visual overhaul and pixel snap and asked to start A2. Copy the selected measurement in a form that pastes straight into a stylesheet or a class list. The output is a formatted manual visual measurement. It is not an inspected CSS property, and Guides does not know which property the measured distance really is.
+
+| ID | Story | Acceptance |
+| --- | --- | --- |
+| C01 | Copy a CSS declaration. | **Copy as → CSS** copies `width: 320px;`, `height: 48px;`, `border-radius: 8px;` or `gap: 24px;` for the selected Area Width, Height, Radius or guide gap. Area **Both** copies the width and height declarations on two lines. |
+| C02 | Copy a Tailwind class. | **Copy as → Tailwind** copies arbitrary-value utilities: `w-[320px]`, `h-[48px]`, `rounded-[8px]`, `gap-[24px]`; Both copies `w-[320px] h-[48px]`. Named scale classes such as `w-80` are never produced, because that would assume a Tailwind theme Guides cannot see. |
+| C03 | Use calibrated values only. | Both formats use design px from the explicit calibration, or rem when the measurement unit is rem, at the precision the readout shows (px two decimals, rem four, trailing zeros trimmed). Screen pt and Backing px selections still produce design px. Until the scale is explicitly set the menu offers no copy action, only an inert line explaining why; nothing is copied from an assumed scale. |
+| C04 | Keep the origin visible and existing copy unchanged. | The menu is headed as a manual measurement and each item shows the exact text it copies. Copy, Command-C and Copy Variable keep their current output. A guide gap is offered as `gap` only as a starting point; the menu says so. Nothing is persisted and no profile setting is added. |
+
+Implementation: `CopyFormat`, `CopySubject` and `CopyFormatter` in GuidesCore convert through the existing `MeasurementEngine`, so gating and rounding match the readout. The readout gains one **Copy as** menu beside Copy. No new permission, capture, network use or persistence; the project-profile archive stays at version 1.
+
+Validation: 120 core tests pass, including six new formatter tests for every subject in both formats, explicit-calibration gating in every unit, px versus rem, readout precision and invalid distances. The native Debug build passes. Independent review found that the uncalibrated menu would also have shown an empty section header, that the wider button row could truncate long values at the 460-point readout cap, and that the gating test covered only two subjects; the menu branches are now exclusive, the cap is 520 points, and the test covers every subject. The menu itself is unverified by hand; the checks are listed in TESTING.md. Commit gate: clean independent review of the exact staged diff.
+
+Research: Context7 (`/websites/tailwindcss`) confirmed the arbitrary-value forms [`w-[<value>]`](https://tailwindcss.com/docs/width), [`h-[<value>]`](https://tailwindcss.com/docs/height), [`rounded-[<value>]`](https://tailwindcss.com/docs/border-radius) and [`gap-[<value>]`](https://tailwindcss.com/docs/gap), each emitting the value unchanged.
 
 Earlier staging, retained for context:
 

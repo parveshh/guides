@@ -60,6 +60,21 @@ final class EditorModel {
             calibration: calibration, backingFactor: backingFactor) }
     }
     var canCopy: Bool { copyText != nil }
+    /// The selected measurement in screen points, for CSS and Tailwind copy formats.
+    var copySubject: CopySubject? {
+        if document.isAreaSelected, let area = document.area, area.rect.width > 0, area.rect.height > 0 {
+            switch areaDimension {
+            case .width: return .width(area.rect.width)
+            case .height: return .height(area.rect.height)
+            case .both: return .size(width: area.rect.width, height: area.rect.height)
+            case .radius: return .radius(area.cornerRadius)
+            }
+        }
+        return document.selectedGap.map { .gap($0.distance) }
+    }
+    func formattedCopy(_ format: CopyFormat) -> String? {
+        copySubject.flatMap { CopyFormatter.text($0, format: format, unit: unit, calibration: calibration) }
+    }
     var selectedText: String { copyText ?? "Select a measurement" }
     var contextText: String {
         let origin = document.isAreaSelected && areaDimension == .radius ? "Manual circular fit" : "Manual"
@@ -486,6 +501,7 @@ final class OverlayController {
             },
             onOpacity: { [weak self] opacity in self?.model.radiusOutlineOpacity = opacity; self?.refresh() },
             onCopy: { [weak self] in self?.copySelection() },
+            onCopyAs: { [weak self] format in self?.copyFormatted(format) },
             onCopyVariable: { [weak self] in self?.copyVariable() }))
         readout.sizingOptions = []
         readout.isHidden = true
@@ -525,6 +541,13 @@ final class OverlayController {
         guard !model.isAnnotating, !model.aligningReference, let text = model.copyText else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private func copyFormatted(_ format: CopyFormat) {
+        guard !model.isAnnotating, !model.aligningReference, let text = model.formattedCopy(format) else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        panel?.makeFirstResponder(canvas)
     }
 
     private func copyVariable() {
@@ -621,7 +644,7 @@ final class OverlayController {
         let contextWidth = (model.contextText as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11)]).width
         let radius = area != nil && model.areaDimension == .radius
         let hasTokens = !model.spacingScale.tokens.isEmpty && !radius
-        let size = CGSize(width: min(460, max(hasTokens ? 420 : (radius ? 400 : 300), max(valueWidth, contextWidth) + 140)),
+        let size = CGSize(width: min(520, max(hasTokens ? 420 : (radius ? 400 : 360), max(valueWidth, contextWidth) + 250)),
             height: (area == nil ? 80 : 124) + (hasTokens ? 100 : 0) + (radius ? 146 : 0))
         let frame = MeasurementReadoutLayout.frame(size: size, anchor: anchor, beside: gap?.axis == .horizontal,
             usable: canvas.usableRect, toolbar: canvas.controlsRect, area: area)
