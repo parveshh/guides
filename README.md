@@ -20,11 +20,23 @@ Place guides, measure an area, copy a value, then **Pin & work** to keep the ove
 
 Guides measures visible distances manually. It does not read CSS, Figma layers or the source properties of another app.
 
-## Build and open
+## Download and open
 
-This repository contains source code. A signed installer is not provided.
+Download the app ZIP from [Guides 0.1.0 preview](https://github.com/parveshh/guides/releases/tag/v0.1.0). Choose **Guides-0.1.0-macOS-universal.zip**, rather than the source-code archives.
 
-You need an **Apple Silicon Mac** and **Xcode 26 or later with Swift 6.2 or later**. Select the full Xcode installation as your active developer directory. The app targets macOS 14 and later; older supported macOS versions and Intel Macs have not been validated.
+The build includes **Apple Silicon and Intel** code and requires **macOS 14 or later**. Runtime checks were performed on Apple Silicon; Intel and older supported macOS versions still need testing. Xcode is not needed to run the download.
+
+1. Unzip the download and drag **Guides.app** to **Applications**.
+2. Quit any older copy of Guides, then open the installed app.
+3. Look for the ruler icon in the menu bar. Guides has no Dock icon.
+
+This preview is **ad hoc signed, not Developer ID signed or notarized**. macOS may block its first launch. If you trust this download, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm **Open**. See [Apple's instructions](https://support.apple.com/en-us/102445). No security settings are changed by the app or build script.
+
+The release includes a SHA-256 checksum and [release notes](docs/releases/0.1.0.md). To update, quit Guides and replace the app in Applications with the new copy.
+
+## Build from source
+
+You need **Xcode 26 or later with Swift 6.2 or later**. Select the full Xcode installation as your active developer directory. The development build script targets Apple Silicon; the release script builds both architectures.
 
 ```sh
 git clone https://github.com/parveshh/guides.git
@@ -36,6 +48,8 @@ cd guides
 Open `build/DerivedData/Build/Products/Debug/Guides.app` in Finder. A ruler icon appears in the menu bar; there is no Dock icon. You can also open `Guides.xcodeproj`, select **Guides → My Mac**, and run it in Xcode.
 
 Initial dependency downloads need an internet connection. Guides itself has no network features.
+
+To package the same universal preview locally, run `./scripts/release.sh`. It creates the app ZIP and checksum in `build/releases/` and does not publish them. See the [release build notes](docs/RELEASING.md).
 
 ## Your first measurement
 
@@ -74,7 +88,7 @@ Settings, spacing scales, breakpoints, profiles and saved layouts stay on your M
 
 ## Development status
 
-Guides is a personal development build. The core has **139 passing tests**, with native view and event-handler checks. Physical input, VoiceOver and some display/OS scenarios still need manual verification; see [TESTING.md](TESTING.md).
+Guides is an early preview. The core has **139 passing tests**, with native view and event-handler checks. Physical input, VoiceOver and some display/OS scenarios still need manual verification; see [TESTING.md](TESTING.md).
 
 - [Usage guide and examples](docs/USAGE.md)
 - [Validation and remaining checks](TESTING.md)

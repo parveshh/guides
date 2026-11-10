@@ -51,18 +51,23 @@ extension OverlayCanvas {
     /// Draws the hints as one bar. The first hint names the mode; on narrow displays the
     /// nonessential hints are dropped from the end, then the mode name truncates.
     func drawHints() {
-        let title: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11.5, weight: .semibold), .foregroundColor: NSColor.white]
-        let body: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11.5, weight: .regular), .foregroundColor: NSColor(white: 1, alpha: 0.78)]
-        let key: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 10.5, weight: .semibold), .foregroundColor: NSColor.white]
+        let textSize: CGFloat = 11.5, keySize: CGFloat = 10.5
+        let title: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: textSize, weight: .semibold), .foregroundColor: NSColor.white]
+        let body: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: textSize, weight: .regular), .foregroundColor: NSColor(white: 1, alpha: 0.78)]
+        let key: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: keySize, weight: .semibold), .foregroundColor: NSColor.white]
         let height: CGFloat = 32, padding: CGFloat = 14, gap: CGFloat = 16, capGap: CGFloat = 4
-        func capWidth(_ text: String) -> CGFloat { max(20, ceil((text as NSString).size(withAttributes: key).width) + 10) }
-        func width(_ hint: Hint, first: Bool) -> CGFloat {
+        // Build measurement attributes inside each helper: capturing the non-Sendable
+        // drawing dictionaries fails Swift's optimized whole-module isolation checks.
+        @MainActor func capWidth(_ text: String) -> CGFloat {
+            max(20, ceil((text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: keySize, weight: .semibold)]).width) + 10)
+        }
+        @MainActor func width(_ hint: Hint, first: Bool) -> CGFloat {
             let caps = hint.keys.reduce(0) { $0 + capWidth($1) + capGap }
-            return caps + (hint.keys.isEmpty ? 0 : 2) + ceil((hint.text as NSString).size(withAttributes: first ? title : body).width)
+            return caps + (hint.keys.isEmpty ? 0 : 2) + ceil((hint.text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: textSize, weight: first ? .semibold : .regular)]).width)
         }
         var items = hints
         guard !items.isEmpty else { return }
-        func total() -> CGFloat {
+        @MainActor func total() -> CGFloat {
             items.enumerated().reduce(padding * 2 + gap * CGFloat(items.count - 1)) { $0 + width($1.element, first: $1.offset == 0) }
         }
         let available = max(0, usableRect.width - 16)
