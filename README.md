@@ -8,6 +8,10 @@ Place guides, measure an area, copy a value, then **Pin & work** to keep the ove
 
 *Native app views on a sample background. Selected guides and their measurement are cyan.*
 
+[![Silent preview of the Guides overview video: guides measuring a button gap, an Area with a fitted corner radius, annotations and an agent check](docs/video/guides-promo.gif)](docs/video/guides-promo.mp4)
+
+*Preview of the [45-second overview video](docs/video/guides-promo.mp4), which has sound. It is a motion-graphics recreation of the interface, not a screen recording; see the [video notes](docs/video/README.md).*
+
 ## What it does
 
 - **Measure spacing:** place horizontal or vertical guides and read the gaps between them.
@@ -132,5 +136,6 @@ Guides is an early preview. The core has **148 passing tests**, with native view
 - [Product plan and roadmap](PLAN.md)
 - [Implementation and review instructions](AGENTS.md)
 - [Screenshot source notes](docs/screenshots/README.md)
+- [Overview video notes](docs/video/README.md)
 
 The app uses Swift, AppKit and SwiftUI. Its geometry and editing core is a local Swift package; [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) is pinned to 3.0.1. Build output is kept in the ignored `build/` folder.

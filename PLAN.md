@@ -509,6 +509,14 @@ Release validation caught a startup ordering race: NSRunningApplication can repo
 
 Validation: all 148 core tests and Debug/universal Release builds pass. The original failing reproduction now passes on both configurations. Native regressions cover repeated direct and copied starts, wrapper/native reuse, exact pinned-session preservation, three six-process cold-start races, crash recovery, reuse of a running unmodified 0.2.0 build and cold-launch CLI readiness. Full native CLI acceptance passes on Debug and the extracted 0.2.1 app. Artifact/version/architecture/signature/capability, portable launcher, full skill/install parity and ZIP/checksum checks pass. No temporary debug instrumentation remains. Independent staged review, commit/tag/push and uploaded asset verification remain publication gates; established signing/hardware/visual limits remain explicit.
 
+### README overview video (11 November 2026)
+
+The user requested a short motion-graphics video showing what Guides can do, reviewed its drafts, and asked for it to be added to the GitHub README. This is documentation only: no app source, permission, capture, network or release change, and the Group B/C gates are unchanged.
+
+Deliverables: `docs/video/guides-promo.mp4` (44.9 s, 1920×1080, with generated music and sound effects), a silent `docs/video/guides-promo.gif` preview embedded near the top of the README and linked to the MP4, and `docs/video/README.md` with source notes. The interface is redrawn in HTML from the documentation renders and animated; it is not a screen recording and captures no desktop. Sample measurements are fixture values, Design px values appear only after Design px and Scale 100% are shown, and the agent scene's commands follow the CLI reference without claiming a recorded run or CSS, Figma or DOM inspection. The HyperFrames source project stays outside the repository.
+
+Checks: every half-second of the rendered video was inspected across three review rounds; audio loudness was measured, not listened to. README links and the new files are validated, and the exact staged diff is independently reviewed before commit.
+
 Earlier staging, retained for context:
 
 | Stage | Features | Trigger |
