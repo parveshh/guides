@@ -10,8 +10,6 @@ Place guides, measure an area, copy a value, then **Pin & work** to keep the ove
 
 [![Silent preview of the Guides overview video: guides measuring a button gap, an Area with a fitted corner radius, annotations and an agent check](docs/video/guides-promo.gif)](docs/video/guides-promo.mp4)
 
-*Preview of the [45-second overview video](docs/video/guides-promo.mp4), which has sound. It is a motion-graphics recreation of the interface, not a screen recording; see the [video notes](docs/video/README.md).*
-
 ## What it does
 
 - **Measure spacing:** place horizontal or vertical guides and read the gaps between them.
