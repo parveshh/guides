@@ -1,6 +1,6 @@
 ---
 name: guides
-description: Operate the native macOS Guides app through its direct CLI or computer use to place guides, measure visible gaps and areas, calibrate units, read development values, annotate and use its existing local tools. Use for the Guides app, not generic guides or source-level CSS inspection.
+description: Use the native macOS Guides app to measure visible gaps and areas, compare a Figma design with a browser implementation side by side, calibrate units, annotate, and operate its local tools through the CLI or computer use.
 ---
 
 # Guides
@@ -8,6 +8,8 @@ description: Operate the native macOS Guides app through its direct CLI or compu
 Use Guides to measure or mark the visible interface on one display. Prefer its CLI for explicit coordinates, state queries and repeatable measurement edits. Use computer use to find visible boundaries, fit geometry by eye, operate annotations or use tools not exposed by the CLI. The skill is usable from Codex CLI as `$guides`; desktop control depends on the tools available in that session.
 
 Read [references/cli.md](references/cli.md) for direct commands, launch/setup and output. For on-screen interaction, also read [references/computer-use.md](references/computer-use.md).
+
+When comparing a design with a running implementation, follow the [side-by-side spacing audit](references/figma-comparison.md). It covers independent pane scales, matching visible edges, reporting coverage and verifying implementation fixes.
 
 ## Measurement contract
 

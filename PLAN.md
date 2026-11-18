@@ -517,6 +517,10 @@ Deliverables: `docs/video/guides-promo.mp4` (44.9 s, 1920×1080, with generated 
 
 Checks: every half-second of the rendered video was inspected across three review rounds; audio loudness was measured, not listened to. README links and the new files are validated, and the exact staged diff is independently reviewed before commit.
 
+### Agent workflow for side-by-side Figma spacing checks (18 November 2026)
+
+The repository skill now covers comparing a visible Figma frame and a running implementation at a matching viewport. The agent uses the existing CLI and computer-use workflow, keeps an independent scale for each pane, records signed differences between corresponding landmarks, and reports coverage. Implementation fixes can be remeasured against the same landmarks. This is a skill and documentation change within the existing local command contract. Verification with a real Figma frame and its matching implementation remains open.
+
 Earlier staging, retained for context:
 
 | Stage | Features | Trigger |

@@ -86,6 +86,12 @@ This places a **64-screen-point width** at supplied coordinates; it does not det
 
 After launch, retry read-only `status` briefly if the app is still starting. An agent's execution sandbox may block local Mach messaging; use its normal command-approval path when needed. No Guides privacy grant is required for the CLI.
 
+With the skill from this checkout and a computer-use-enabled agent, open the Figma frame and the matching browser page and ask:
+
+> Use $guides to compare the Figma frame on the left with the implementation on the right. Check every visible inset, gap, alignment and component size. Report the Figma value, implementation value and difference, and list anything you couldn't measure.
+
+The agent identifies corresponding visible edges and calibrates each pane independently. Give it the target viewport and a known size for each pane if those are unavailable on screen. See the [side-by-side spacing audit](skills/guides/references/figma-comparison.md).
+
 To add `guides` to your PATH and install the skill locally, run from the repository root (these links fail safely if a destination already exists):
 
 ```sh
