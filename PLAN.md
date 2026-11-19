@@ -532,3 +532,9 @@ Earlier staging, retained for context:
 | Public release | Compatibility testing, onboarding, signed/notarized distribution, updates, commercial decisions | Evidence of usefulness beyond personal prototype |
 
 The MVP is complete when its two tools are accurate, quick to operate, and easy to dismiss.
+
+### Guide Groups (19 November 2026)
+
+Implement the selected pane-header design in three reviewed slices: core and CLI, native interaction, then the agent workflow and end-to-end checks. Each manually drawn region owns local guides, one Area, calibration, unit and history. Two confirmed scales of 200% and 100% convert 48 and 24 screen points to the same 24 px. Groups are in-memory per display. Existing unscoped CLI operations address the full display. Region placement and scoped measurements use the existing local command channel and require no capture, inspection or network additions.
+
+Core/CLI slice: reuse the measurement workspace and copy formatting, validate group placement, and expose explicit ID-scoped operations and capability discovery. Names and regions are independent of window identities.

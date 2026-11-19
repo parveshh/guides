@@ -9,19 +9,32 @@ public struct DisplayConfiguration: Equatable, Sendable {
     }
 }
 
-public struct DisplaySession: Sendable {
+public struct MeasurementWorkspace: Sendable {
     public var document: MeasurementDocument
     public var history = DocumentHistory()
     public var calibration: Calibration
     public var unit: MeasurementUnit = .screenPoints
     public var areaDimension: AreaDimension = .both
+    public init(size: CGSize, rootPixels: CGFloat) {
+        document = MeasurementDocument(size: size)
+        calibration = Calibration(rootPixels: rootPixels)
+    }
+}
+
+@dynamicMemberLookup
+public struct DisplaySession: Sendable {
+    public var measurements: MeasurementWorkspace
+    public var groups = GuideGroups()
+    public subscript<T>(dynamicMember key: WritableKeyPath<MeasurementWorkspace, T>) -> T {
+        get { measurements[keyPath: key] }
+        set { measurements[keyPath: key] = newValue }
+    }
     public var grid = GridConfiguration()
     public var reference: ReferenceOverlay?
     public var annotations: AnnotationSession
     public init(size: CGSize, rootPixels: CGFloat) {
-        document = MeasurementDocument(size: size)
+        measurements = MeasurementWorkspace(size: size, rootPixels: rootPixels)
         annotations = AnnotationSession(size: size)
-        calibration = Calibration(rootPixels: rootPixels)
     }
 }
 
@@ -47,6 +60,7 @@ public struct DisplaySessions: Sendable {
         activeID = id
         var session = sessions[id] ?? DisplaySession(size: configuration.size, rootPixels: rootPixels)
         session.calibration.setRootPixels(rootPixels)
+        session.groups.setRootPixels(rootPixels)
         return session
     }
 

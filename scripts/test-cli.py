@@ -49,6 +49,20 @@ def main():
         assert display["width"] >= 400 and display["height"] >= 400
         call("show", "guides", "4294967295", ok=False)
         call("show", "guides", display_id)
+        assert call("status")["state"]["guideGroups"]
+        groups = []
+        for name, x, width, scale in [("Figma", 0, 48, 200), ("Implementation", 200, 24, 100)]:
+            group = call("group", "create", name, str(x), "120", "200", "200")["groupID"]
+            groups.append(group)
+            call("group", group, "gap", "vertical", str(width), "0")
+            call("group", group, "calibrate", str(scale))
+            call("group", group, "unit", "design-px")
+            assert call("group", group, "read")["value"] == "24px"
+        assert len(call("group", "list")["groups"]) == 2
+        call("group", groups[1], "gap", "vertical", "0", "32")
+        assert call("group", groups[1], "read", "css")["value"] == "gap: 32px;"
+        assert call("group", groups[0], "read")["value"] == "24px"
+        assert call("status")["state"]["guides"] == []
         call("unit", "design-px", ok=False)
         gap = call("gap", "vertical", "300.125", "364.125")["state"]
         assert gap["value"] == "64 screen pt" and len(gap["guides"]) == 2

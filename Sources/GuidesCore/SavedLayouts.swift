@@ -129,16 +129,19 @@ public struct LayoutLoadRecovery {
     public mutating func load(_ content: SavedLayoutContent, into session: inout DisplaySession, on display: DisplayConfiguration) throws {
         guard content.isCompatible(with: display), session.document.size == display.size else { throw LayoutError.display }
         var restored = try content.restoredSession(rootPixels: session.calibration.rootPixels)
+        restored.groups = session.groups
         restored.reference = session.reference
         var previousSession = session
         // Recovery restores layout state only; it must not keep a removed/replaced image alive.
         previousSession.reference = nil
+        previousSession.groups = GuideGroups()
         previous = (display, previousSession)
         session = restored
     }
     public mutating func undo(into session: inout DisplaySession, on display: DisplayConfiguration) throws {
         guard let previous, previous.0 == display else { throw LayoutError.noRecovery }
         var restored = previous.1
+        restored.groups = session.groups
         restored.reference = session.reference
         restored.calibration.setRootPixels(session.calibration.rootPixels)
         session = restored

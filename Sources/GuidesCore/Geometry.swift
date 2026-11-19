@@ -48,7 +48,7 @@ public struct GuideGap: Equatable, Sendable {
 }
 
 public struct MeasurementDocument: Equatable, Sendable {
-    public let size: CGSize
+    public private(set) var size: CGSize
     public private(set) var guides: [Guide] = []
     public private(set) var selection: [UUID] = []
     public private(set) var area: AreaMeasurement?
@@ -169,6 +169,14 @@ public struct MeasurementDocument: Equatable, Sendable {
 
     public func hasSameContent(as other: MeasurementDocument) -> Bool {
         guides == other.guides && area == other.area && size == other.size && gapLabelPositions == other.gapLabelPositions
+    }
+
+    mutating func resize(to size: CGSize) throws {
+        guard guides.allSatisfy({ $0.position <= $0.axis.limit(in: size) }),
+              area.map({ CGRect(origin: .zero, size: size).contains($0.rect) }) ?? true else {
+            throw CommandLineError("The region must contain all its measurements.")
+        }
+        self.size = size
     }
 
     public var adjacentGaps: [GuideGap] {

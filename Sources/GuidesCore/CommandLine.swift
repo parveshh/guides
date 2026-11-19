@@ -7,11 +7,13 @@ public struct CommandLineError: LocalizedError, Sendable {
 }
 
 /// The local CLI accepts only explicit measurement operations, never arbitrary selectors or file paths.
-public enum GuidesCommand: Equatable, Sendable {
+public indirect enum GuidesCommand: Equatable, Sendable {
     case status, displays, show(OverlayTool, UInt32?), pin, hide, clear, undo, redo, delete
     case guide(GuideAxis, CGFloat), gap(GuideAxis, CGFloat, CGFloat)
     case area(CGRect, CGFloat), select([UUID]), selectArea(AreaDimension)
     case unit(MeasurementUnit), calibrate(CGFloat, CGFloat?), read(String)
+
+    case groupList, groupCreate(String, CGRect), group(UUID, GuidesCommand)
 
     public static let help = """
     Usage: guides COMMAND [ARGUMENTS]
@@ -27,6 +29,9 @@ public enum GuidesCommand: Equatable, Sendable {
       calibrate PERCENT [ROOT_PX]     Confirm scale; optional root is saved in Settings
       read [plain|css|tailwind|variable]
       delete | clear | undo | redo   Measurement editing only
+      group list | group create NAME X Y WIDTH HEIGHT
+      group ID status|guide|gap|area|select|unit|calibrate|read|clear|delete|undo|redo ...
+      Group measurement coordinates are group-local top-left screen points.
       pin | hide
       --help
     Open the current build of Guides before sending commands. All replies are JSON.
@@ -55,6 +60,22 @@ public enum GuidesCommand: Equatable, Sendable {
             return axis
         }
         switch arguments[0] {
+        case "group":
+            guard let operation = values.first else { throw CommandLineError("Expected group list, create, or ID.") }
+            if operation == "list" { try count(1...1); return .groupList }
+            if operation == "create" {
+                try count(6...6)
+                return try .groupCreate(values[1], CGRect(x: number(2), y: number(3), width: number(4), height: number(5)))
+            }
+            guard let id = UUID(uuidString: operation), values.count > 1, values[1] != "group" else {
+                throw CommandLineError("Expected a group UUID and measurement command.")
+            }
+            let command = try parse(Array(values.dropFirst()))
+            switch command {
+            case .guide, .gap, .area, .select, .selectArea, .unit, .calibrate, .read, .status, .clear, .undo, .redo, .delete:
+                return .group(id, command)
+            default: throw CommandLineError("Unsupported group command.")
+            }
         case "status": try count(0...0); return .status
         case "displays": try count(0...0); return .displays
         case "pin": try count(0...0); return .pin
@@ -107,6 +128,10 @@ public enum GuidesCommand: Equatable, Sendable {
 public enum CommandLineEditing {
     /// Validate and apply to a copy so rejected operations leave selection, geometry and history intact.
     public static func apply(_ command: GuidesCommand, to session: inout DisplaySession) throws {
+        try apply(command, to: &session.measurements)
+    }
+
+    public static func apply(_ command: GuidesCommand, to session: inout MeasurementWorkspace) throws {
         var updated = session
         let before = updated.document
         switch command {

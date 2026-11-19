@@ -8,15 +8,32 @@ import UniformTypeIdentifiers
 @MainActor
 @Observable
 final class EditorModel {
+    var groups = GuideGroups()
+    var measurements = MeasurementWorkspace(size: .zero, rootPixels: 16)
     var presentation = Presentation()
-    var document = MeasurementDocument(size: .zero)
-    var history = DocumentHistory()
-    var areaDimension: AreaDimension = .both
+    var document: MeasurementDocument {
+        get { measurements.document }
+        set { measurements.document = newValue }
+    }
+    var history: DocumentHistory {
+        get { measurements.history }
+        set { measurements.history = newValue }
+    }
+    var areaDimension: AreaDimension {
+        get { measurements.areaDimension }
+        set { measurements.areaDimension = newValue }
+    }
     var radiusOutlineOpacity: CGFloat = 0.35
     var magnifierPresented = false
     let magnifier = CornerMagnifier(source: CornerCaptureService())
-    var calibration = Calibration()
-    var unit: MeasurementUnit = .screenPoints
+    var calibration: Calibration {
+        get { measurements.calibration }
+        set { measurements.calibration = newValue }
+    }
+    var unit: MeasurementUnit {
+        get { measurements.unit }
+        set { measurements.unit = newValue }
+    }
     var backingFactor: CGFloat = 1
     var controlsCompact = false
     var activationShortcut = ""
@@ -34,16 +51,7 @@ final class EditorModel {
     var grid = GridConfiguration()
     var gridGeometry: GridGeometry?
     var gridStatus = ""
-    var spacingDistance: CGFloat? {
-        if document.isAreaSelected, let rect = document.area?.rect {
-            switch areaDimension {
-            case .width: return rect.width
-            case .height: return rect.height
-            case .both, .radius: return nil
-            }
-        }
-        return document.selectedGap?.distance
-    }
+    var spacingDistance: CGFloat? { measurements.spacingDistance }
     var spacingMatch: SpacingMatch? {
         spacingDistance.flatMap { spacingScale.match(screenDistance: $0, calibration: calibration) }
     }
@@ -52,27 +60,9 @@ final class EditorModel {
         if document.isAreaSelected && (areaDimension == .both || areaDimension == .radius) { return "Select Width or Height to compare tokens." }
         return "This measurement cannot be compared."
     }
-    var copyText: String? {
-        if document.isAreaSelected, let rect = document.area?.rect, rect.width > 0, rect.height > 0 {
-            return MeasurementEngine.areaText(rect, dimension: areaDimension, unit: unit,
-                calibration: calibration, backingFactor: backingFactor, cornerRadius: document.area?.cornerRadius ?? 0)
-        }
-        return document.selectedGap.flatMap { MeasurementEngine.text($0.distance, unit: unit,
-            calibration: calibration, backingFactor: backingFactor) }
-    }
+    var copyText: String? { measurements.copyText(backingFactor: backingFactor) }
     var canCopy: Bool { copyText != nil }
-    /// The selected measurement in screen points, for CSS and Tailwind copy formats.
-    var copySubject: CopySubject? {
-        if document.isAreaSelected, let area = document.area, area.rect.width > 0, area.rect.height > 0 {
-            switch areaDimension {
-            case .width: return .width(area.rect.width)
-            case .height: return .height(area.rect.height)
-            case .both: return .size(width: area.rect.width, height: area.rect.height)
-            case .radius: return .radius(area.cornerRadius)
-            }
-        }
-        return document.selectedGap.map { .gap($0.distance) }
-    }
+    var copySubject: CopySubject? { measurements.copySubject }
     func formattedCopy(_ format: CopyFormat) -> String? {
         copySubject.flatMap { CopyFormatter.text($0, format: format, unit: unit, calibration: calibration) }
     }
@@ -197,6 +187,7 @@ final class OverlayController {
         }
         preferences.onRootChange = { [weak self] value in
             self?.model.calibration.setRootPixels(value)
+            self?.model.groups.setRootPixels(value)
             self?.refresh()
         }
         preferences.onRulerAppearanceChange = { [weak self] value in
@@ -220,11 +211,8 @@ final class OverlayController {
         }
         model.presentation.edit(tool)
         updateActivationShortcut()
-        model.document = session.document
-        model.history = session.history
-        model.calibration = session.calibration
-        model.unit = session.unit
-        model.areaDimension = session.areaDimension
+        model.measurements = session.measurements
+        model.groups = session.groups
         model.grid = session.grid
         model.annotations = session.annotations
         model.aligningReference = false
@@ -290,6 +278,7 @@ final class OverlayController {
         layoutRecovery.invalidate(invalidated)
         if let activeID, invalidated.contains(activeID) {
             hide()
+            model.groups = GuideGroups()
             model.document = MeasurementDocument(size: .zero)
             model.history = DocumentHistory()
             model.calibration = Calibration(rootPixels: preferences.rootPixels)
@@ -306,11 +295,8 @@ final class OverlayController {
 
     private func currentSession() -> DisplaySession {
         var session = DisplaySession(size: model.document.size, rootPixels: preferences.rootPixels)
-        session.document = model.document
-        session.history = model.history
-        session.calibration = model.calibration
-        session.unit = model.unit
-        session.areaDimension = model.areaDimension
+        session.measurements = model.measurements
+        session.groups = model.groups
         session.grid = model.grid
         session.reference = model.reference.overlay
         session.annotations = model.annotations
@@ -572,25 +558,27 @@ final class OverlayController {
         case .pin:
             guard model.presentation.mode == .editing else { throw CommandLineError("Show the overlay before pinning.") }
             pin()
-        case let .read(format):
-            guard !model.isAnnotating, !model.aligningReference else { throw CommandLineError("Select a measurement in Guides or Area first.") }
-            let value: String?
-            switch format {
-            case "css": value = model.formattedCopy(.css)
-            case "tailwind": value = model.formattedCopy(.tailwind)
-            case "variable": value = model.spacingMatch?.copyReference
-            default: value = model.copyText
-            }
-            guard let value else { throw CommandLineError("No value is available. Check selection, calibration and token match.") }
-            return ["value": value, "state": commandState()]
+        case .groupList:
+            return ["groups": model.groups.items.map(groupSummary)]
+        case let .groupCreate(name, frame):
+            try requireCommandEditing()
+            let id = try model.groups.create(name: name, frame: frame, display: model.document.size, rootPixels: preferences.rootPixels)
+            saveSession(); refresh()
+            return ["groupID": id.uuidString, "state": commandState(group: try model.groups.group(id))]
+        case let .group(id, operation):
+            let group = try model.groups.group(id)
+            if operation == .status { return ["state": commandState(group: group)] }
+            if case let .read(format) = operation { return try readCommand(format, group: group) }
+            try requireCommandEditing()
+            var measurements = group.measurements
+            try CommandLineEditing.apply(operation, to: &measurements)
+            model.groups.update(id, measurements: measurements)
+            if preferences.rootPixels != measurements.calibration.rootPixels { preferences.setRootPixels(measurements.calibration.rootPixels) }
+            saveSession(); refresh()
+            return ["state": commandState(group: try model.groups.group(id))]
+        case let .read(format): return try readCommand(format)
         default:
-            guard model.displayID != nil, model.presentation.mode == .editing,
-                  !model.isAnnotating, !model.aligningReference else {
-                throw CommandLineError("Run show guides or show area before editing measurements.")
-            }
-            guard canvas?.hasActiveGesture != true else {
-                throw CommandLineError("Finish or cancel the active pointer gesture before editing measurements through the CLI.")
-            }
+            try requireCommandEditing()
             var session = currentSession()
             try CommandLineEditing.apply(command, to: &session)
             model.magnifierPresented = false; model.magnifier.stop()
@@ -602,24 +590,60 @@ final class OverlayController {
         return ["state": commandState()]
     }
 
-    private func commandState() -> [String: Any] {
-        var state: [String: Any] = ["protocolVersion": 1, "pid": ProcessInfo.processInfo.processIdentifier,
+    private func requireCommandEditing() throws {
+        guard model.displayID != nil, model.presentation.mode == .editing, !model.isAnnotating, !model.aligningReference else {
+            throw CommandLineError("Run show guides or show area before editing measurements.")
+        }
+        guard canvas?.hasActiveGesture != true else {
+            throw CommandLineError("Finish or cancel the active pointer gesture before editing measurements through the CLI.")
+        }
+    }
+
+    private func readCommand(_ format: String, group: GuideGroup? = nil) throws -> [String: Any] {
+        guard !model.isAnnotating, !model.aligningReference else { throw CommandLineError("Select a measurement in Guides or Area first.") }
+        let workspace = group?.measurements ?? model.measurements
+        let value: String?
+        switch format {
+        case "css", "tailwind":
+            value = workspace.copySubject.flatMap { CopyFormatter.text($0, format: format == "css" ? .css : .tailwind,
+                unit: workspace.unit, calibration: workspace.calibration) }
+        case "variable":
+            value = workspace.spacingDistance.flatMap { model.spacingScale.match(screenDistance: $0, calibration: workspace.calibration)?.copyReference }
+        default: value = workspace.copyText(backingFactor: model.backingFactor)
+        }
+        guard let value else { throw CommandLineError("No value is available. Check selection, calibration and token match.") }
+        return ["value": value, "state": commandState(group: group)]
+    }
+
+    private func groupSummary(_ group: GuideGroup) -> [String: Any] {
+        ["id": group.id.uuidString, "name": group.name,
+         "frame": ["x": group.frame.minX, "y": group.frame.minY, "width": group.frame.width, "height": group.frame.height],
+         "calibrated": group.measurements.calibration.isConfirmed, "scalePercent": group.measurements.calibration.pointsPerPixel * 100]
+    }
+
+    private func commandState(group: GuideGroup? = nil) -> [String: Any] {
+        let workspace = group?.measurements ?? model.measurements
+        var state: [String: Any] = ["guideGroups": true, "protocolVersion": 1, "pid": ProcessInfo.processInfo.processIdentifier,
             "appPath": Bundle.main.bundlePath, "mode": model.presentation.mode.rawValue,
             "tool": model.presentation.tool.rawValue, "coordinateSystem": "display-local top-left screen points",
-            "width": model.document.size.width, "height": model.document.size.height, "backingFactor": model.backingFactor,
-            "unit": model.unit.rawValue, "calibrated": model.calibration.isConfirmed,
-            "scalePercent": model.calibration.pointsPerPixel * 100, "rootPixels": model.calibration.rootPixels,
-            "canUndo": model.history.canUndo, "canRedo": model.history.canRedo,
+            "width": workspace.document.size.width, "height": workspace.document.size.height, "backingFactor": model.backingFactor,
+            "unit": workspace.unit.rawValue, "calibrated": workspace.calibration.isConfirmed,
+            "scalePercent": workspace.calibration.pointsPerPixel * 100, "rootPixels": workspace.calibration.rootPixels,
+            "canUndo": workspace.history.canUndo, "canRedo": workspace.history.canRedo,
             "gestureActive": canvas?.hasActiveGesture ?? false,
-            "guides": model.document.guides.map { ["id": $0.id.uuidString, "axis": $0.axis.rawValue, "position": $0.position] as [String: Any] },
-            "selectedGuideIDs": model.document.selection.map(\.uuidString), "areaSelected": model.document.isAreaSelected,
-            "areaDimension": model.areaDimension.rawValue]
+            "guides": workspace.document.guides.map { ["id": $0.id.uuidString, "axis": $0.axis.rawValue, "position": $0.position] as [String: Any] },
+            "selectedGuideIDs": workspace.document.selection.map(\.uuidString), "areaSelected": workspace.document.isAreaSelected,
+            "areaDimension": workspace.areaDimension.rawValue]
         state["displayID"] = model.displayID.map { $0 as Any } ?? NSNull()
-        if let area = model.document.area {
+        if let area = workspace.document.area {
             state["area"] = ["x": area.rect.minX, "y": area.rect.minY, "width": area.rect.width,
                              "height": area.rect.height, "radius": area.cornerRadius]
         } else { state["area"] = NSNull() }
-        state["value"] = model.copyText.map { $0 as Any } ?? NSNull()
+        state["value"] = workspace.copyText(backingFactor: model.backingFactor).map { $0 as Any } ?? NSNull()
+        if let group {
+            state["group"] = groupSummary(group)
+            state["coordinateSystem"] = "group-local top-left screen points"
+        }
         return state
     }
 
