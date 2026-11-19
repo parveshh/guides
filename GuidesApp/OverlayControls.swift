@@ -4,6 +4,7 @@ import GuidesCore
 /// The stable session bar. Active-tool settings live in a smaller, separate strip.
 struct OverlayControls: View {
     var model: EditorModel
+    var onEditGroup: (UUID) -> Void
     var onRulerAppearance: (RulerAppearance) -> Void
     var onInspectImage: () -> Void
     var onResizeWindow: () -> Void
@@ -55,6 +56,13 @@ struct OverlayControls: View {
                     Button("Saved Layouts…", systemImage: "square.stack", action: onSavedLayouts)
                     Button("Project Profiles…", systemImage: "folder", action: onProjectProfiles)
                 }
+                if !model.groups.items.isEmpty, !model.isAnnotating, !model.aligningReference {
+                    Menu("Guide Groups") {
+                        ForEach(model.groups.items) { group in
+                            Button(group.name) { onEditGroup(group.id) }
+                        }
+                    }
+                }
                 Section("Canvas") {
                     Button(model.grid.isEnabled ? "Hide Grid" : "Show Grid", systemImage: "grid") {
                         var grid = model.grid; grid.isEnabled.toggle(); onGrid(grid)
@@ -75,9 +83,9 @@ struct OverlayControls: View {
             .accessibilityLabel("Tools and ruler appearance").accessibilityValue(model.rulerAppearance.rawValue)
             RailDivider()
             Button(action: onUndo) { Image(systemName: "arrow.uturn.backward") }
-                .disabled(!model.canUndo).help("Undo (⌘Z)").accessibilityLabel("Undo")
+                .disabled(!model.focused.canUndo).help("Undo (⌘Z)").accessibilityLabel("Undo")
             Button(action: onRedo) { Image(systemName: "arrow.uturn.forward") }
-                .disabled(!model.canRedo).help("Redo (⇧⌘Z)").accessibilityLabel("Redo")
+                .disabled(!model.focused.canRedo).help("Redo (⇧⌘Z)").accessibilityLabel("Redo")
             RailDivider()
             Button(action: onPin) {
                 HStack(alignment: .top, spacing: 7) {

@@ -7,6 +7,18 @@ final class OverlayCanvas: NSView {
     var usableRect = CGRect.zero
     var controlsRect = CGRect.zero
     var readoutRect = CGRect.zero
+    weak var displayCanvas: OverlayCanvas?
+    private var displayOrigin: CGPoint { displayCanvas.map { convert(.zero as CGPoint, to: $0) } ?? .zero }
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if let displayCanvas, model.presentation.mode == .editing, model.presentation.tool == .guides {
+            let displayPoint = displayCanvas.convert(point, from: superview)
+            if displayCanvas.topRuler.contains(displayPoint) || displayCanvas.leftRuler.contains(displayPoint) { return nil }
+        }
+        return super.hitTest(point)
+    }
+    var onActivate: (() -> Void)?
+    var rulerTarget: (() -> OverlayCanvas?)?
+    private weak var forwardedDrag: OverlayCanvas?
     var onEscape: (() -> Void)?
     var onChange: (() -> Void)?
     var onCopy: (() -> Void)?
@@ -34,10 +46,14 @@ final class OverlayCanvas: NSView {
     override var needsPanelToBecomeKey: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    var hasActiveGesture: Bool { dragStart != nil || referenceDrag != nil || model.annotations.isDragging }
+    var hasActiveGesture: Bool { forwardedDrag != nil || dragStart != nil || referenceDrag != nil || model.annotations.isDragging }
 
     @discardableResult
     func cancelGesture() -> Bool {
+        if let target = forwardedDrag {
+            forwardedDrag = nil
+            return target.cancelGesture()
+        }
         if model.annotations.cancel() { onChange?(); return true }
         if let referenceDrag {
             model.reference.overlay?.setPlacement(referenceDrag.placement, recording: false)
@@ -109,8 +125,8 @@ final class OverlayCanvas: NSView {
         switch action {
         case .add(let axis):
             guard let window else { return }
-            let point = DisplayGeometry(frame: window.frame).localPoint(fromGlobal: NSEvent.mouseLocation)
-            model.document.add(axis: axis, position: PixelSnapping.snap(axis.position(of: point), backingFactor: model.backingFactor))
+            let point = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+            model.document.add(axis: axis, position: axis.position(of: snapped(point, for: event)))
         case .delete:
             model.document.deleteSelection()
         case .cycle(let backwards, let extending):
@@ -127,13 +143,20 @@ final class OverlayCanvas: NSView {
     /// Guides and Area edges placed with the pointer land on whole backing pixels.
     /// Holding Control places them freely.
     private func snapped(_ point: CGPoint, for event: NSEvent) -> CGPoint {
-        event.modifierFlags.contains(.control) ? point : PixelSnapping.snap(point, backingFactor: model.backingFactor)
+        event.modifierFlags.contains(.control) ? point : PixelSnapping.snap(point, backingFactor: model.backingFactor, origin: displayOrigin)
     }
 
     override func mouseDown(with event: NSEvent) {
         guard model.presentation.mode == .editing else { return }
-        window?.makeFirstResponder(self)
         let point = convert(event.locationInWindow, from: nil)
+        if model.presentation.tool == .guides, !model.aligningReference,
+           topRuler.contains(point) || leftRuler.contains(point), let target = rulerTarget?() {
+            forwardedDrag = target
+            target.startGuide(topRuler.contains(point) ? .horizontal : .vertical, event: event)
+            return
+        }
+        onActivate?()
+        window?.makeFirstResponder(self)
         if model.aligningReference {
             if let placement = model.reference.overlay?.placement, placement.isVisible, placement.frame.contains(point) {
                 referenceDrag = (point, placement)
@@ -168,7 +191,7 @@ final class OverlayCanvas: NSView {
             onChange?()
             return
         }
-        if model.presentation.tool == .guides, topRuler.contains(point) || leftRuler.contains(point) {
+        if !model.isGroup, model.presentation.tool == .guides, topRuler.contains(point) || leftRuler.contains(point) {
             dragStart = model.document
             let axis: GuideAxis = topRuler.contains(point) ? .horizontal : .vertical
             draggingID = model.document.add(axis: axis, position: axis.position(of: snapped(point, for: event)))
@@ -182,7 +205,16 @@ final class OverlayCanvas: NSView {
         onChange?()
     }
 
+    private func startGuide(_ axis: GuideAxis, event: NSEvent) {
+        window?.makeFirstResponder(self)
+        dragStart = model.document
+        let point = snapped(convert(event.locationInWindow, from: nil), for: event)
+        draggingID = model.document.add(axis: axis, position: axis.position(of: point))
+        onChange?()
+    }
+
     override func mouseDragged(with event: NSEvent) {
+        if let target = forwardedDrag { target.mouseDragged(with: event); return }
         let current = DisplayGeometry.clamp(convert(event.locationInWindow, from: nil), to: bounds.size)
         if let referenceDrag {
             model.reference.overlay?.setPlacement(referenceDrag.placement.moved(dx: current.x - referenceDrag.start.x,
@@ -212,7 +244,7 @@ final class OverlayCanvas: NSView {
                 let dx = current.x - start.x, dy = current.y - start.y
                 model.document.setArea(event.modifierFlags.contains(.control)
                     ? AreaGeometry.moved(rect, dx: dx, dy: dy, within: bounds.size)
-                    : PixelSnapping.moved(rect, dx: dx, dy: dy, within: bounds.size, backingFactor: model.backingFactor))
+                    : PixelSnapping.moved(rect, dx: dx, dy: dy, within: bounds.size, backingFactor: model.backingFactor, origin: displayOrigin))
             case .resize(let handle, let rect):
                 model.document.setArea(AreaGeometry.resized(rect, handle: handle, to: edge, within: bounds.size))
                 if let original = dragStart?.area, let area = model.document.area {
@@ -229,6 +261,11 @@ final class OverlayCanvas: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if let target = forwardedDrag {
+            forwardedDrag = nil
+            target.mouseUp(with: event)
+            return
+        }
         if model.annotations.isDragging { model.annotations.end() }
         if let referenceDrag, let placement = model.reference.overlay?.placement {
             model.reference.overlay?.record(before: referenceDrag.placement, after: placement)
@@ -258,11 +295,17 @@ final class OverlayCanvas: NSView {
     override func draw(_ dirtyRect: NSRect) {
         guard model.presentation.mode != .hidden else { return }
         labels.removeAll()
-        drawReference()
-        drawSpotlight()
-        drawGrid()
-        if model.presentation.mode == .editing && !model.isAnnotating { drawRulers() }
-        drawGridOrigin()
+        if model.isGroup {
+            bounds.clip()
+            OverlayStyle.guide.setStroke()
+            NSBezierPath(rect: bounds.insetBy(dx: 0.5, dy: 0.5)).stroke()
+        } else {
+            drawReference()
+            drawSpotlight()
+            drawGrid()
+            if model.presentation.mode == .editing && !model.isAnnotating { drawRulers() }
+            drawGridOrigin()
+        }
         drawArea()
         for guide in model.document.guides {
             let start = guide.axis == .horizontal ? CGPoint(x: 0, y: guide.position) : CGPoint(x: guide.position, y: 0)
@@ -297,6 +340,7 @@ final class OverlayCanvas: NSView {
             drawLabel(text, rect: rect, selected: selected, selectionColor: OverlayStyle.selectedGuide)
             labels.append((rect, gap))
         }
+        if model.isGroup { window?.invalidateCursorRects(for: self); return }
         drawAnnotations()
         drawHints()
         if let spotlight = model.annotations.document.spotlight {
@@ -586,7 +630,7 @@ final class OverlayCanvas: NSView {
         let editing = model.presentation.mode == .editing
         setAccessibilityElement(editing)
         setAccessibilityRole(.group)
-        setAccessibilityLabel("Measurements")
+        setAccessibilityLabel(model.groupName.map { "\($0) measurements" } ?? "Measurements")
         setAccessibilityValue([model.grid.isEnabled ? model.gridStatus : "Grid hidden", referenceStatus ?? "Reference hidden", annotationStatus, breakpointStatus].joined(separator: " · "))
         setAccessibilityHelp("H and V add guides at the pointer. Bracket keys select; Shift extends a parallel pair. Arrow keys move the selection.")
         guard editing else { setAccessibilityChildren([]); accessibilityItems = [:]; return }
@@ -650,7 +694,7 @@ final class OverlayCanvas: NSView {
             let item = element(gap.ids.map(\.uuidString).joined(), label: "\(gap.axis == .horizontal ? "Vertical" : "Horizontal") gap \(model.text(gap.distance))",
                 rect: labelRect(model.text(gap.distance), centered: anchor), selected: Set(gap.ids) == Set(model.document.selection)) { [weak self] in
                     guard let self, self.model.presentation.mode == .editing else { return }
-                    self.cancelGesture(); self.model.document.select(gap.ids)
+                    self.onActivate?(); self.cancelGesture(); self.model.document.select(gap.ids)
                     self.window?.makeFirstResponder(self); self.onChange?()
                 }
             item.setAccessibilityHelp(gap.axis == .vertical ? "Drag the label up or down without moving its two guides" : "Drag the label left or right without moving its two guides")
@@ -664,7 +708,7 @@ final class OverlayCanvas: NSView {
         if let area = model.document.area {
             _ = element(area.id.uuidString, label: "Area \(model.areaText(area.rect)) · Radius \(model.text(area.cornerRadius))", rect: area.rect, selected: model.document.isAreaSelected) { [weak self] in
                 guard let self, self.model.presentation.mode == .editing else { return }
-                self.cancelGesture(); self.model.document.selectArea(); self.model.presentation.edit(.area)
+                self.onActivate?(); self.cancelGesture(); self.model.document.selectArea(); self.model.presentation.edit(.area)
                 self.window?.makeFirstResponder(self); self.onChange?()
             }
         }
@@ -677,6 +721,7 @@ final class OverlayCanvas: NSView {
     @discardableResult
     func moveGapLabel(_ gap: GuideGap, by delta: CGFloat) -> Bool {
         guard model.presentation.mode == .editing, !model.isAnnotating, !model.aligningReference else { return false }
+        onActivate?()
         cancelGesture()
         model.document.select(gap.ids)
         let before = model.document
@@ -693,6 +738,7 @@ final class OverlayCanvas: NSView {
 
     private func selectAccessibleGuide(_ id: UUID, extending: Bool) {
         guard model.presentation.mode == .editing else { return }
+        onActivate?()
         cancelGesture()
         model.document.selectGuide(id, extending: extending)
         model.presentation.edit(.guides)

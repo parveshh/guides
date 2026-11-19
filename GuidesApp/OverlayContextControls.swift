@@ -3,6 +3,7 @@ import GuidesCore
 
 struct OverlayContextControls: View {
     var model: EditorModel
+    var onGroup: () -> Void
     var onUnit: (MeasurementUnit) -> Void
     var onCalibration: (Calibration) -> Void
     var onGrid: (GridConfiguration) -> Void
@@ -31,6 +32,7 @@ struct OverlayContextControls: View {
         .buttonStyle(RailButtonStyle())
         .modifier(OverlaySurface())
         .padding(8)
+        .onChange(of: model.selectedPane?.groupID) { dismissPopovers() }
         .onChange(of: model.displayID) { _, _ in dismissPopovers() }
         .onChange(of: model.presentation.tool) { _, _ in dismissPopovers() }
         .onChange(of: model.presentation.mode) { _, mode in if mode != .editing { dismissPopovers() } }
@@ -45,25 +47,28 @@ struct OverlayContextControls: View {
                     Button(unit.rawValue) { requestUnit(unit) }
                 }
             } label: {
-                Text(model.unit.rawValue).font(.system(size: 13, weight: .medium))
+                Text(model.focused.unit.rawValue).font(.system(size: 13, weight: .medium))
             }
             .menuStyle(.borderlessButton).fixedSize()
-            .accessibilityLabel("Unit").accessibilityValue(model.unit.rawValue)
+            .accessibilityLabel("Unit").accessibilityValue(model.focused.unit.rawValue)
             .help("Unit shown on measurements and copied values")
-            Button(model.calibration.isConfirmed ? "Scale \(MeasurementText.number(model.calibration.pointsPerPixel * 100))%" : "Set scale…") {
+            Button(model.focused.calibration.isConfirmed ? "Scale \(MeasurementText.number(model.focused.calibration.pointsPerPixel * 100))%" : "Set scale…") {
                 gridPresented = false; referencePresented = false; pendingUnit = nil; calibrationPresented = true
             }
             .buttonStyle(RailButtonStyle(filled: true)).lineLimit(1).frame(maxWidth: 150)
             .help("Set the view scale explicitly for design px and rem")
             .popover(isPresented: $calibrationPresented) {
-                CalibrationEditor(calibration: model.calibration, gapDistance: model.document.selectedGap?.distance,
-                    area: model.document.isAreaSelected ? model.document.area?.rect : nil,
+                CalibrationEditor(calibration: model.focused.calibration, gapDistance: model.focused.document.selectedGap?.distance,
+                    area: model.focused.document.isAreaSelected ? model.focused.document.area?.rect : nil,
                     onApply: { calibration in
                         onCalibration(calibration)
                         if let pendingUnit { onUnit(pendingUnit) }
                         calibrationPresented = false
                     }, onCancel: { calibrationPresented = false })
             }
+            Button("Group", systemImage: "plus", action: onGroup)
+                .fixedSize().accessibilityLabel("New Guide Group")
+                .help("Draw a region with its own measurement scale")
             RailDivider()
             Button("Grid", systemImage: "grid") {
                 calibrationPresented = false; referencePresented = false; gridPresented = true
@@ -97,7 +102,7 @@ struct OverlayContextControls: View {
         calibrationPresented = false; gridPresented = false; referencePresented = false; pendingUnit = nil
     }
     private func requestUnit(_ unit: MeasurementUnit) {
-        if unit.requiresCalibration, !model.calibration.isConfirmed {
+        if unit.requiresCalibration, !model.focused.calibration.isConfirmed {
             referencePresented = false; gridPresented = false; pendingUnit = unit; calibrationPresented = true
         } else { onUnit(unit) }
     }

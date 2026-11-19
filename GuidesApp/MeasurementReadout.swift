@@ -2,7 +2,8 @@ import SwiftUI
 import GuidesCore
 
 struct MeasurementReadout: View {
-    var model: EditorModel
+    var owner: EditorModel
+    private var model: EditorModel { owner.focused }
     var onDimension: (AreaDimension) -> Void
     var onRadius: (CGFloat) -> Void
     var onNudgeArea: (CGFloat, CGFloat) -> Void
@@ -33,7 +34,8 @@ struct MeasurementReadout: View {
                     Slider(value: Binding(get: { model.radiusOutlineOpacity }, set: { onOpacity($0) }), in: 0...1, step: 0.05)
                         .accessibilityLabel("Radius border opacity")
                     Button("Magnifier…") { model.magnifierPresented = true }
-                        .buttonStyle(RailButtonStyle(filled: true))
+                        .buttonStyle(RailButtonStyle(filled: true)).disabled(model.isGroup)
+                        .help(model.isGroup ? "Live magnification is available for the full-display Area." : "Magnify the selected corner")
                         .popover(isPresented: Binding(get: { model.magnifierPresented }, set: { model.magnifierPresented = $0 })) {
                             CornerMagnifierView(model: model, onRadius: onRadius, onNudge: onNudgeArea, onOpacity: onOpacity)
                         }

@@ -9,7 +9,23 @@ import UniformTypeIdentifiers
 @Observable
 final class EditorModel {
     var groups = GuideGroups()
-    var measurements = MeasurementWorkspace(size: .zero, rootPixels: 16)
+    private var displayMeasurements = MeasurementWorkspace(size: .zero, rootPixels: 16)
+    weak var owner: EditorModel?
+    var groupID: UUID?
+    var isGroup: Bool { groupID != nil }
+    var groupName: String? { groupID.flatMap { try? owner?.groups.group($0).name } }
+    var selectedPane: EditorModel?
+    var focused: EditorModel { selectedPane ?? self }
+    var measurements: MeasurementWorkspace {
+        get {
+            if let id = groupID, let group = try? owner?.groups.group(id) { return group.measurements }
+            return displayMeasurements
+        }
+        set {
+            if let id = groupID { owner?.groups.update(id, measurements: newValue) }
+            else { displayMeasurements = newValue }
+        }
+    }
     var presentation = Presentation()
     var document: MeasurementDocument {
         get { measurements.document }
@@ -148,6 +164,9 @@ final class OverlayController {
     private let onBreakpoints: () -> Void
     private var layoutRecovery = LayoutLoadRecovery()
     private var panel: OverlayPanel?
+    private var groupOverlay: GuideGroupOverlay?
+    private var inputCanvas: OverlayCanvas? { groupOverlay?.activeCanvas ?? canvas }
+    private var editingGesture: Bool { canvas?.hasActiveGesture == true || groupOverlay?.isBusy == true }
     private var canvas: OverlayCanvas?
     private var controls: ToolbarHostingView<OverlayControls>?
     private var contextControls: ToolbarHostingView<OverlayContextControls>?
@@ -199,7 +218,7 @@ final class OverlayController {
     func edit(_ tool: OverlayTool, on requestedScreen: NSScreen? = nil) {
         model.magnifierPresented = false; model.magnifier.stop()
         cancelReferenceImport()
-        canvas?.cancelGesture()
+        cancelGestures()
         saveSession()
         layoutRecovery.invalidate(sessions.synchronize(NSScreen.screens.compactMap(\.guidesConfiguration)))
         guard let screen = requestedScreen ?? NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
@@ -224,7 +243,12 @@ final class OverlayController {
         panel?.ignoresMouseEvents = false
         refresh()
         panel?.makeKeyAndOrderFront(nil)
-        panel?.makeFirstResponder(canvas)
+        panel?.makeFirstResponder(inputCanvas)
+    }
+
+    private func cancelGestures() {
+        canvas?.cancelGesture()
+        groupOverlay?.cancel()
     }
 
     private func updateActivationShortcut() {
@@ -238,14 +262,14 @@ final class OverlayController {
 
     func measureRadius() {
         edit(.area)
-        model.areaDimension = .radius
-        if model.document.area != nil { model.document.selectArea() }
+        model.focused.areaDimension = .radius
+        if model.focused.document.area != nil { model.focused.document.selectArea() }
         refresh()
     }
 
     func pin() {
         cancelReferenceImport()
-        canvas?.cancelGesture()
+        cancelGestures()
         model.aligningReference = false
         model.presentation.pin()
         updateActivationShortcut()
@@ -259,7 +283,7 @@ final class OverlayController {
 
     func hide() {
         cancelReferenceImport()
-        canvas?.cancelGesture()
+        cancelGestures()
         model.aligningReference = false
         model.presentation.hide()
         panel?.editing = false
@@ -271,7 +295,7 @@ final class OverlayController {
     func screenParametersChanged() {
         model.magnifierPresented = false; model.magnifier.stop()
         cancelReferenceImport()
-        canvas?.cancelGesture()
+        cancelGestures()
         saveSession()
         let activeID = sessions.activeID
         let invalidated = sessions.synchronize(NSScreen.screens.compactMap(\.guidesConfiguration))
@@ -308,7 +332,7 @@ final class OverlayController {
     func prepareSavedLayouts() -> DisplayConfiguration? {
         if model.displayID == nil || model.presentation.mode == .hidden { edit(model.presentation.tool) }
         cancelReferenceImport()
-        canvas?.cancelGesture()
+        cancelGestures()
         guard let target = NSScreen.screens.compactMap(\.guidesConfiguration).first(where: { $0.id == model.displayID }) else { return nil }
         hide()
         return target
@@ -322,7 +346,7 @@ final class OverlayController {
 
     func captureLayout(on target: DisplayConfiguration) throws -> SavedLayoutContent {
         _ = try layoutScreen(target)
-        canvas?.cancelGesture()
+        cancelGestures()
         return try SavedLayoutContent(session: currentSession(), backingFactor: target.backingFactor)
     }
 
@@ -332,7 +356,7 @@ final class OverlayController {
 
     func loadLayout(_ content: SavedLayoutContent, on target: DisplayConfiguration) throws {
         let screen = try layoutScreen(target)
-        canvas?.cancelGesture()
+        cancelGestures()
         var session = currentSession()
         try layoutRecovery.load(content, into: &session, on: target)
         applyLayoutSession(session, screen: screen)
@@ -340,7 +364,7 @@ final class OverlayController {
 
     func undoLayoutLoad(on target: DisplayConfiguration) throws {
         let screen = try layoutScreen(target)
-        canvas?.cancelGesture()
+        cancelGestures()
         var session = currentSession()
         try layoutRecovery.undo(into: &session, on: target)
         applyLayoutSession(session, screen: screen)
@@ -362,7 +386,7 @@ final class OverlayController {
         panel?.ignoresMouseEvents = false
         refresh()
         panel?.makeKeyAndOrderFront(nil)
-        panel?.makeFirstResponder(canvas)
+        panel?.makeFirstResponder(inputCanvas)
     }
 
     private func configureLayout(_ screen: NSScreen) {
@@ -435,7 +459,13 @@ final class OverlayController {
         canvas.autoresizingMask = [.width, .height]
         canvas.model = model
         canvas.onEscape = { [weak self] in self?.hide() }
-        panel.onEscape = { [weak canvas] in canvas?.cancelOrHide() }
+        panel.onEscape = { [weak self] in
+            guard let self, self.groupOverlay?.cancelSetup() != true else { return }
+            if self.canvas?.hasActiveGesture == true { self.canvas?.cancelOrHide() }
+            else { self.inputCanvas?.cancelOrHide() }
+        }
+        canvas.rulerTarget = { [weak self] in self?.groupOverlay?.activeCanvas }
+        canvas.onActivate = { [weak self] in self?.groupOverlay?.activate(nil) }
         canvas.onChange = { [weak self] in self?.refresh() }
         canvas.onCopy = { [weak self] in self?.copySelection() }
         canvas.onUndo = { [weak self] in self?.undo() }
@@ -443,17 +473,19 @@ final class OverlayController {
         panel.onCommand = { [weak canvas] event in canvas?.handleCommand(event) ?? false }
         root.addSubview(canvas)
         let controls = ToolbarHostingView(rootView: OverlayControls(model: model,
+            onEditGroup: { [weak self] in self?.groupOverlay?.editGroup($0) },
             onRulerAppearance: { [weak self] in self?.preferences.setRulerAppearance($0) },
             onInspectImage: onInspectImage, onResizeWindow: onResizeWindow, onSpacingTokens: onSpacingTokens, onSavedLayouts: onSavedLayouts,
             onProjectProfiles: onProjectProfiles, onBreakpoints: onBreakpoints,
             onTool: { [weak self] tool in
                 guard let self else { return }
                 self.model.magnifierPresented = false; self.model.magnifier.stop()
-                self.canvas?.cancelGesture(); self.model.aligningReference = false
+                self.cancelGestures(); self.model.aligningReference = false
                 self.model.presentation.edit(tool); self.refresh()
+                self.panel?.makeFirstResponder(self.inputCanvas)
             },
             onGrid: { [weak self] grid in
-                self?.canvas?.cancelGesture(); self?.model.grid = grid; self?.refresh()
+                self?.cancelGestures(); self?.model.grid = grid; self?.refresh()
             },
             onAnnotationClear: { [weak self] in self?.editAnnotations { $0.clear() } },
             onUndo: { [weak self] in self?.undo() }, onRedo: { [weak self] in self?.redo() },
@@ -463,31 +495,33 @@ final class OverlayController {
         root.addSubview(controls)
         mainConstraints = ToolbarConstraints(view: controls, root: root)
         let contextControls = ToolbarHostingView(rootView: OverlayContextControls(model: model,
-            onUnit: { [weak self] unit in self?.model.unit = unit; self?.refresh() },
+            onGroup: { [weak self] in self?.groupOverlay?.beginCreation() },
+            onUnit: { [weak self] unit in self?.model.focused.unit = unit; self?.refresh() },
             onCalibration: { [weak self] calibration in
-                self?.model.calibration = calibration
+                self?.model.focused.calibration = calibration
                 self?.preferences.setRootPixels(calibration.rootPixels)
                 self?.refresh()
             },
             onGrid: { [weak self] grid in
-                self?.canvas?.cancelGesture()
+                self?.cancelGestures()
                 self?.model.grid = grid
                 self?.refresh()
             },
             onReferenceOpen: { [weak self] in self?.openReference() },
             onReferenceApply: { [weak self] placement in
-                self?.canvas?.cancelGesture()
+                self?.cancelGestures()
                 self?.model.reference.overlay?.setPlacement(placement)
                 self?.model.aligningReference = false
                 self?.refresh()
             },
             onReferenceAlign: { [weak self] in
+                self?.cancelGestures()
                 self?.model.aligningReference = true
-                self?.panel?.makeFirstResponder(self?.canvas)
+                self?.panel?.makeFirstResponder(self?.inputCanvas)
                 self?.refresh()
             },
             onReferenceRemove: { [weak self] in
-                self?.canvas?.cancelGesture()
+                self?.cancelGestures()
                 self?.model.aligningReference = false
                 self?.model.reference.restore(nil)
             },
@@ -498,26 +532,26 @@ final class OverlayController {
         contextControls.onIntrinsicSizeChange = { [weak self] in self?.controlsContentSizeChanged() }
         root.addSubview(contextControls)
         contextConstraints = ToolbarConstraints(view: contextControls, root: root)
-        let readout = NSHostingView(rootView: MeasurementReadout(model: model,
-            onDimension: { [weak self] dimension in self?.model.areaDimension = dimension; self?.refresh() },
+        let readout = NSHostingView(rootView: MeasurementReadout(owner: model,
+            onDimension: { [weak self] dimension in self?.model.focused.areaDimension = dimension; self?.refresh() },
             onRadius: { [weak self] value in
                 guard let self else { return }
-                self.canvas?.cancelGesture()
-                let before = self.model.document
-                self.model.document.setCornerRadius(value)
-                self.model.history.record(before: before, after: self.model.document)
-                if !self.model.magnifierPresented { self.panel?.makeFirstResponder(self.canvas) }
+                self.cancelGestures()
+                let before = self.model.focused.document
+                self.model.focused.document.setCornerRadius(value)
+                self.model.focused.history.record(before: before, after: self.model.focused.document)
+                if !self.model.focused.magnifierPresented { self.panel?.makeFirstResponder(self.inputCanvas) }
                 self.refresh()
             },
             onNudgeArea: { [weak self] dx, dy in
                 guard let self else { return }
-                self.canvas?.cancelGesture()
-                let before = self.model.document
-                self.model.document.nudge(dx: dx, dy: dy)
-                self.model.history.record(before: before, after: self.model.document)
+                self.cancelGestures()
+                let before = self.model.focused.document
+                self.model.focused.document.nudge(dx: dx, dy: dy)
+                self.model.focused.history.record(before: before, after: self.model.focused.document)
                 self.refresh()
             },
-            onOpacity: { [weak self] opacity in self?.model.radiusOutlineOpacity = opacity; self?.refresh() },
+            onOpacity: { [weak self] opacity in self?.model.focused.radiusOutlineOpacity = opacity; self?.refresh() },
             onCopy: { [weak self] in self?.copySelection() },
             onCopyAs: { [weak self] format in self?.copyFormatted(format) },
             onCopyVariable: { [weak self] in self?.copyVariable() }))
@@ -530,10 +564,13 @@ final class OverlayController {
         self.controls = controls
         self.contextControls = contextControls
         self.readout = readout
+        groupOverlay = GuideGroupOverlay(model: model, canvas: canvas, root: root,
+            onChange: { [weak self] in self?.refresh() })
     }
 
     func clear() {
-        canvas?.cancelGesture()
+        cancelGestures()
+        let model = self.model.focused
         let before = model.document
         model.document.clear()
         model.history.record(before: before, after: model.document)
@@ -594,7 +631,7 @@ final class OverlayController {
         guard model.displayID != nil, model.presentation.mode == .editing, !model.isAnnotating, !model.aligningReference else {
             throw CommandLineError("Run show guides or show area before editing measurements.")
         }
-        guard canvas?.hasActiveGesture != true else {
+        guard !editingGesture else {
             throw CommandLineError("Finish or cancel the active pointer gesture before editing measurements through the CLI.")
         }
     }
@@ -630,7 +667,7 @@ final class OverlayController {
             "unit": workspace.unit.rawValue, "calibrated": workspace.calibration.isConfirmed,
             "scalePercent": workspace.calibration.pointsPerPixel * 100, "rootPixels": workspace.calibration.rootPixels,
             "canUndo": workspace.history.canUndo, "canRedo": workspace.history.canRedo,
-            "gestureActive": canvas?.hasActiveGesture ?? false,
+            "gestureActive": editingGesture,
             "guides": workspace.document.guides.map { ["id": $0.id.uuidString, "axis": $0.axis.rawValue, "position": $0.position] as [String: Any] },
             "selectedGuideIDs": workspace.document.selection.map(\.uuidString), "areaSelected": workspace.document.isAreaSelected,
             "areaDimension": workspace.areaDimension.rawValue]
@@ -648,7 +685,8 @@ final class OverlayController {
     }
 
     private func undo() {
-        canvas?.cancelGesture()
+        let model = self.model.focused
+        cancelGestures()
         if model.aligningReference { model.reference.overlay?.undo() }
         else if model.isAnnotating { model.annotations.undo() }
         else if let document = model.history.undo(current: model.document) { model.document = document }
@@ -656,7 +694,8 @@ final class OverlayController {
     }
 
     private func redo() {
-        canvas?.cancelGesture()
+        let model = self.model.focused
+        cancelGestures()
         if model.aligningReference { model.reference.overlay?.redo() }
         else if model.isAnnotating { model.annotations.redo() }
         else if let document = model.history.redo(current: model.document) { model.document = document }
@@ -664,28 +703,31 @@ final class OverlayController {
     }
 
     private func copySelection() {
+        let model = self.model.focused
         guard !model.isAnnotating, !model.aligningReference, let text = model.copyText else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
     }
 
     private func copyFormatted(_ format: CopyFormat) {
+        let model = self.model.focused
         guard !model.isAnnotating, !model.aligningReference, let text = model.formattedCopy(format) else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-        panel?.makeFirstResponder(canvas)
+        panel?.makeFirstResponder(inputCanvas)
     }
 
     private func copyVariable() {
+        let model = self.model.focused
         guard let text = model.spacingMatch?.copyReference else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
     }
 
     private func editAnnotations(_ change: (inout AnnotationSession) -> Void) {
-        canvas?.cancelGesture()
+        cancelGestures()
         change(&model.annotations)
-        panel?.makeFirstResponder(canvas)
+        panel?.makeFirstResponder(inputCanvas)
         refresh()
     }
 
@@ -730,7 +772,7 @@ final class OverlayController {
     private func openReference() {
         guard let panel, referencePicker == nil, model.presentation.mode == .editing,
               let displayID = model.displayID else { return }
-        canvas?.cancelGesture()
+        cancelGestures()
         model.aligningReference = false
         let picker = NSOpenPanel()
         referencePicker = picker
@@ -746,13 +788,14 @@ final class OverlayController {
             if response == .OK, let url = picker.url {
                 self.model.reference.load(url, displaySize: self.model.document.size)
             }
-            self.panel?.makeFirstResponder(self.canvas)
+            self.panel?.makeFirstResponder(self.inputCanvas)
             self.refresh()
         }
     }
 
     private func refresh() {
-        if !model.showsMeasurementReadout || !model.document.isAreaSelected || model.areaDimension != .radius {
+        groupOverlay?.sync()
+        if model.selectedPane != nil || !model.showsMeasurementReadout || !model.document.isAreaSelected || model.areaDimension != .radius {
             model.magnifierPresented = false; model.magnifier.stop()
         }
         model.gridGeometry = nil
@@ -781,6 +824,8 @@ final class OverlayController {
 
     private func positionReadout() {
         guard let canvas, let readout, let root = panel?.contentView else { return }
+        let model = self.model.focused
+        let localCanvas = inputCanvas ?? canvas
         guard model.showsMeasurementReadout else {
             readout.isHidden = true
             canvas.readoutRect = .zero
@@ -789,8 +834,8 @@ final class OverlayController {
         let area = model.document.isAreaSelected ? model.document.area?.rect : nil
         let gap = model.document.selectedGap
         let anchor: CGPoint
-        if let area { anchor = CGPoint(x: area.midX, y: area.midY) }
-        else if let gap { anchor = canvas.gapAnchor(gap) }
+        if let area { anchor = canvas.convert(CGPoint(x: area.midX, y: area.midY), from: localCanvas) }
+        else if let gap { anchor = canvas.convert(localCanvas.gapAnchor(gap), from: localCanvas) }
         else { return }
         let valueWidth = (model.selectedText as NSString).size(withAttributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 17, weight: .semibold)]).width
         let contextWidth = (model.contextText as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11)]).width
@@ -799,10 +844,11 @@ final class OverlayController {
         let size = CGSize(width: min(520, max(hasTokens ? 420 : (radius ? 400 : 360), max(valueWidth, contextWidth) + 250)),
             height: (area == nil ? 80 : 124) + (hasTokens ? 100 : 0) + (radius ? 146 : 0))
         let frame = MeasurementReadoutLayout.frame(size: size, anchor: anchor, beside: gap?.axis == .horizontal,
-            usable: canvas.usableRect, toolbar: canvas.controlsRect, area: area ?? gap.map { canvas.gapLabelRect($0) })
+            usable: canvas.usableRect, toolbar: canvas.controlsRect, area: (area ?? gap.map { localCanvas.gapLabelRect($0) }).map { canvas.convert($0, from: localCanvas) })
         readout.frame = canvas.convert(frame, to: root)
         readout.isHidden = false
         canvas.readoutRect = frame
+        localCanvas.readoutRect = localCanvas.convert(frame, from: canvas)
     }
 }
 
@@ -816,6 +862,89 @@ private extension NSScreen {
 
 #if DEBUG
 extension OverlayController {
+    /// Exercise real views and local event handlers over two known-size fixture cards.
+    func designCheckGroups(to directory: URL) async {
+        guard let groupOverlay, let canvas, let panel, let root = panel.contentView else { preconditionFailure() }
+        let frames = [CGRect(x: 75, y: 280, width: 625, height: 360), CGRect(x: 750, y: 280, width: 615, height: 360)]
+        let cards = frames.map { frame in
+            let view = GroupFixtureCard(frame: canvas.convert(frame, to: root))
+            root.addSubview(view, positioned: .below, relativeTo: canvas)
+            return view
+        }
+        cards[0].scale = 2
+        func event(_ type: NSEvent.EventType, _ point: CGPoint) -> NSEvent {
+            NSEvent.mouseEvent(with: type, location: canvas.convert(point, to: nil), modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: panel.windowNumber,
+                context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+        }
+        do {
+            var ids: [UUID] = []
+            for (index, frame) in frames.enumerated() {
+                groupOverlay.beginCreation()
+                guard let draft = groupOverlay.draftView else { preconditionFailure() }
+                draft.mouseDown(with: event(.leftMouseDown, frame.origin))
+                draft.mouseUp(with: event(.leftMouseUp, CGPoint(x: frame.maxX, y: frame.maxY)))
+                guard let editor = groupOverlay.fixtureEditor else { preconditionFailure("Group editor did not open") }
+                try editor.onApply(index == 0 ? "Figma" : "Implementation", frame, index == 0 ? 200 : 100)
+                guard let id = model.groups.activeID, let target = groupOverlay.activeCanvas else { preconditionFailure() }
+                ids.append(id)
+                for x in [cards[index].avatarEnd, cards[index].labelStart] {
+                    canvas.mouseDown(with: event(.leftMouseDown, CGPoint(x: 10, y: frame.midY)))
+                    canvas.mouseDragged(with: event(.leftMouseDragged, CGPoint(x: frame.minX + x, y: frame.midY)))
+                    canvas.mouseUp(with: event(.leftMouseUp, CGPoint(x: frame.minX + x, y: frame.midY)))
+                }
+                let pair = target.model.document.guides.map(\.id)
+                _ = try performCommand(.group(id, .select(pair)))
+                let read = try performCommand(.group(id, .read("plain")))
+                precondition(read["value"] as? String == "24px")
+            }
+            precondition(model.document.guides.isEmpty && model.focused.copyText == "24px")
+            groupOverlay.beginCreation()
+            precondition(groupOverlay.cancelSetup() && model.groups.items.count == 2)
+            try? await Task.sleep(for: .milliseconds(200))
+            designSnapshot("guide-groups", to: directory) { _ in }
+            cards[1].gap = 32
+            _ = try performCommand(.group(ids[1], .gap(.vertical, cards[1].avatarEnd, cards[1].labelStart)))
+            precondition(model.focused.copyText == "32px")
+            let design = try performCommand(.group(ids[0], .read("plain")))
+            precondition(design["value"] as? String == "24px")
+            // Cover the display ruler with a fractional-origin group and route real hit-tested events.
+            let frame = CGRect(x: 0.25, y: 670, width: 300, height: 200)
+            let third = try performCommand(.groupCreate("Edge", frame))
+            let id = UUID(uuidString: third["groupID"] as! String)!
+            groupOverlay.activate(id)
+            let start = CGPoint(x: 10, y: 720)
+            let hit = root.hitTest(canvas.convert(start, to: root))
+            precondition(hit === canvas, "Edge-aligned group stole display ruler")
+            let snappedX = PixelSnapping.snap(100, backingFactor: model.backingFactor)
+            for free in [false, true] {
+                let end = CGPoint(x: snappedX + 0.1, y: 720)
+                hit?.mouseDown(with: event(.leftMouseDown, start))
+                let drag = NSEvent.mouseEvent(with: .leftMouseDragged, location: canvas.convert(end, to: nil),
+                    modifierFlags: free ? [.control] : [], timestamp: 0, windowNumber: panel.windowNumber,
+                    context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+                hit?.mouseDragged(with: drag)
+                hit?.mouseUp(with: event(.leftMouseUp, end))
+                let position = try model.groups.group(id).measurements.document.guides.last!.position
+                precondition(abs(frame.minX + position - (free ? end.x : snappedX)) < 0.001)
+            }
+            model.groups.remove(id)
+            groupOverlay.activate(ids[1])
+            let area = CGRect(x: 12, y: 20, width: 80, height: 60)
+            for id in ids { _ = try performCommand(.group(id, .area(area, 4))) }
+            clear()
+            precondition(try! model.groups.group(ids[0]).measurements.document.area != nil)
+            undo()
+            precondition(try! model.groups.group(ids[1]).measurements.document.area?.rect == area)
+            pin()
+            precondition(panel.ignoresMouseEvents && model.groups.items.count == 2 && readout?.isHidden == true)
+            hide()
+            edit(.area, on: panel.screen)
+            precondition(model.groups.items.count == 2)
+            print("PASS: group creation and cancellation, independent ruler drags, calibrated reads, mismatch, scoped clear/undo, Pin and Hide.")
+        } catch { preconditionFailure("Guide Groups fixture: \(error)") }
+    }
+
     /// Exercises this app's actual event handlers with local NSEvent values; no OS input is posted.
     func designCheckGapLabels(to directory: URL) async {
         guard let canvas, let panel, let root = panel.contentView else { preconditionFailure("Missing native canvas") }

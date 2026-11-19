@@ -63,3 +63,18 @@ import Testing
     let odd = PixelSnapping.moved(rect, dx: 1000, dy: 0, within: CGSize(width: 400.3, height: 300), backingFactor: 2)
     #expect(odd.maxX <= 400.3 && odd.width == 40)
 }
+
+@Test func fractionalGroupOriginUsesDisplayPixelGrid() {
+    let origin = CGPoint(x: 10.25, y: 3.75)
+    let local = CGPoint(x: 7.75, y: 5.35)
+    let snapped = PixelSnapping.snap(local, backingFactor: 2, origin: origin)
+    #expect(snapped == CGPoint(x: 7.75, y: 5.25))
+    let rect = CGRect(x: 5, y: 5, width: 80, height: 60)
+    let moved = PixelSnapping.moved(rect, dx: 2.75, dy: 0.35, within: CGSize(width: 100, height: 100),
+                                   backingFactor: 2, origin: origin)
+    #expect(moved.origin == snapped && moved.size == rect.size)
+    let decimal = PixelSnapping.moved(CGRect(x: 0.06, y: 0, width: 2, height: 2),
+        dx: 0.84, dy: 0, within: CGSize(width: 10, height: 10), backingFactor: 2,
+        origin: CGPoint(x: 0.1, y: 0))
+    #expect(decimal.minX + 0.1 == 1)
+}

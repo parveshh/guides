@@ -12,6 +12,11 @@ enum DesignSnapshots {
             func settle() async { try? await Task.sleep(for: .milliseconds(400)) }
             overlay.edit(.guides)
             overlay.designSetViewport(CGSize(width: 1440, height: 1024))
+            if ProcessInfo.processInfo.arguments.contains("--group-checks-only") {
+                await overlay.designCheckGroups(to: directory)
+                NSApp.terminate(nil)
+                return
+            }
             let documentation = ProcessInfo.processInfo.arguments.contains("--documentation-background")
             if documentation {
                 overlay.model.spacingScale = .empty
@@ -135,6 +140,36 @@ enum DesignSnapshots {
         }
         NSGraphicsContext.restoreGraphicsState()
         try? output.representation(using: .png, properties: [:])?.write(to: directory.appendingPathComponent(name + ".png"))
+    }
+}
+#endif
+
+#if DEBUG
+/// Local content for the group verification run. Positions are measured from this view.
+@MainActor
+final class GroupFixtureCard: NSView {
+    var scale: CGFloat = 1
+    var gap: CGFloat = 24 { didSet { needsDisplay = true } }
+    private var left: CGFloat { 48 }
+    var avatarEnd: CGFloat { left + 48 * scale }
+    var labelStart: CGFloat { avatarEnd + gap * scale }
+    override var isFlipped: Bool { true }
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor(white: 0.94, alpha: 1).setFill()
+        bounds.fill()
+        let card = CGRect(x: left - 16 * scale, y: 110 - 12 * scale,
+                          width: 250 * scale, height: 76 * scale)
+        NSColor.white.setFill()
+        NSBezierPath(roundedRect: card, xRadius: 10 * scale, yRadius: 10 * scale).fill()
+        let avatar = CGRect(x: left, y: 110, width: 48 * scale, height: 48 * scale)
+        NSColor(srgbRed: 0.30, green: 0.38, blue: 0.50, alpha: 1).setFill()
+        NSBezierPath(ovalIn: avatar).fill()
+        ("JD" as NSString).draw(at: CGPoint(x: left + 13 * scale, y: 110 + 13 * scale),
+            withAttributes: [.font: NSFont.systemFont(ofSize: 16 * scale, weight: .semibold), .foregroundColor: NSColor.white])
+        ("Jamie Diaz" as NSString).draw(at: CGPoint(x: labelStart, y: 110),
+            withAttributes: [.font: NSFont.systemFont(ofSize: 17 * scale, weight: .semibold), .foregroundColor: NSColor.black])
+        ("Product designer" as NSString).draw(at: CGPoint(x: labelStart, y: 110 + 24 * scale),
+            withAttributes: [.font: NSFont.systemFont(ofSize: 13 * scale), .foregroundColor: NSColor.darkGray])
     }
 }
 #endif

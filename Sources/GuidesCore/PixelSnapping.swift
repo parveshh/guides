@@ -13,15 +13,18 @@ public enum PixelSnapping {
         return snapped.isFinite ? snapped : value
     }
 
-    public static func snap(_ point: CGPoint, backingFactor: CGFloat) -> CGPoint {
-        CGPoint(x: snap(point.x, backingFactor: backingFactor), y: snap(point.y, backingFactor: backingFactor))
+    public static func snap(_ point: CGPoint, backingFactor: CGFloat, origin: CGPoint = .zero) -> CGPoint {
+        CGPoint(x: snap(origin.x + point.x, backingFactor: backingFactor) - origin.x,
+                y: snap(origin.y + point.y, backingFactor: backingFactor) - origin.y)
     }
 
     /// Moves `rect` by the given distance and puts its top-left corner exactly on the nearest
     /// pixel boundary, keeping its size. The display edge wins over snapping.
-    public static func moved(_ rect: CGRect, dx: CGFloat, dy: CGFloat, within size: CGSize, backingFactor: CGFloat) -> CGRect {
-        CGRect(x: min(max(snap(rect.minX + dx, backingFactor: backingFactor), 0), max(0, size.width - rect.width)),
-               y: min(max(snap(rect.minY + dy, backingFactor: backingFactor), 0), max(0, size.height - rect.height)),
-               width: rect.width, height: rect.height)
+    public static func moved(_ rect: CGRect, dx: CGFloat, dy: CGFloat, within size: CGSize, backingFactor: CGFloat,
+                             origin: CGPoint = .zero) -> CGRect {
+        let target = snap(CGPoint(x: rect.minX + dx, y: rect.minY + dy), backingFactor: backingFactor, origin: origin)
+        return CGRect(x: min(max(target.x, 0), max(0, size.width - rect.width)),
+                      y: min(max(target.y, 0), max(0, size.height - rect.height)),
+                      width: rect.width, height: rect.height)
     }
 }
