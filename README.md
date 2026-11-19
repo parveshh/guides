@@ -13,6 +13,7 @@ Place guides, measure an area, copy a value, then **Pin & work** to keep the ove
 ## What it does
 
 - **Measure spacing:** place horizontal or vertical guides and read the gaps between them.
+- **Guide Groups** give each pane its own scale, guides and Area. Available in the current source build. [Compare two panes](docs/USAGE.md#guide-groups)
 - **Measure an area:** read width, height and a manually fitted corner radius.
 - **Move measurement labels:** drag a width label up/down or a height label left/right without moving its guides.
 - **Copy for development:** plain values, CSS declarations, Tailwind classes and matching spacing-token variables.

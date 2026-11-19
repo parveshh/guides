@@ -6,6 +6,7 @@ Guides floats over the app you are checking. You place the boundaries yourself, 
 
 - [Measure spacing](#measure-spacing)
 - [Measure an area and corners](#measure-an-area-and-corners)
+- [Guide Groups](#guide-groups)
 - [Units and scale](#units-and-scale)
 - [Copy values for code](#copy-values-for-code)
 - [Annotate and spotlight](#annotate-and-spotlight)
@@ -52,6 +53,18 @@ Drag the small measurement label:
 The guides and value stay fixed. The Copy panel follows; labels avoid the toolbar where space allows. Escape cancels a drag, and Command-Z/Shift-Command-Z undo/redo completed moves. VoiceOver has directional **Move label** actions with normal 10-point steps, skipping the toolbar when needed.
 
 Label positions stay with each guide pair for this run, including hide/pin and display switching. Deleting a boundary removes its label position. New launches and saved-layout loads use default positions.
+
+## Guide Groups
+
+Use **+ Group** in Guides or Area, drag around the Figma pane, name it **Figma** and confirm its effective scale. Repeat around the browser content with the name **Implementation**. Leaving scale blank starts a group in screen points. For a known reference distance, select that group’s gap or Area and use **Set scale → Known size**.
+
+Click in a pane to make it active. Its header gains a checkmark. Pull from the display rulers, or draw an Area inside the pane. Each group owns its guides, one Area, unit, scale and undo history. A 48-screen-point gap at 200% in Figma and a 24-screen-point gap at 100% in the browser both read **24px**.
+
+![Two native pane headers and matching 24 px gap labels](design/guide-groups/native.png)
+
+*Native Guides overlay over two synthetic cards with different display scales.*
+
+Use a pane’s header chevron or **Tools → Guide Groups** to rename it, change scale, move or resize its region, or remove it. Changing width or height resets that group’s measurement undo history. Click outside all panes for full-display tools, including the optional corner magnifier. Pin and Hide retain groups. Quitting or a display configuration invalidation discards them. Groups stay in their screen locations when the underlying content moves. Saved Layouts operate on the full-display workspace.
 
 ## Measure an area and corners
 

@@ -44,6 +44,29 @@ Measurement editing requires Editing with Guides or Area active and reference al
 
 Measurement editing also rejects while a pointer gesture is active (`state.gestureActive`). Let the user or computer-use operation finish or cancel the drag, then recheck state before retrying; a rejected CLI edit must not cancel that gesture.
 
-All app replies are one JSON object. Success is `{"ok":true,"state":{...}}`, with `value` for reads or `displays` for display listing. State includes `displayID`, `mode`, `tool`, coordinates, guide UUIDs, Area/radius, selected IDs/dimension, unit, backing factor, calibration, root and undo flags. Errors are `{"ok":false,"error":"..."}`. Exit codes: 0 success/help, 1 app/transport failure, 2 invalid command arguments. Launcher errors go to stderr with exit 1. A successful response confirms app state; it does not prove alignment to an external visual target.
+All app replies are one JSON object. Successful measurement and status replies include `state`, and reads also include top-level `value`. The `displays` and `group list` listings return top-level arrays named `displays` and `groups` respectively. State includes `displayID`, `mode`, `tool`, coordinates, guide UUIDs, Area/radius, selected IDs/dimension, unit, backing factor, calibration, root and undo flags. Errors are `{"ok":false,"error":"..."}`. Exit codes: 0 success/help, 1 app/transport failure, 2 invalid command arguments. Launcher errors go to stderr with exit 1. A successful response confirms app state; it does not prove alignment to an external visual target.
 
 The command channel is local Mach messaging scoped to the login user. Other processes in the same login session can issue these commands. It has no network listener or remote endpoint and cannot access arbitrary files or invoke arbitrary app methods. A timeout can happen after execution; do not automatically replay a mutation. Query state and reconcile it with the intended geometry first.
+
+
+## Guide Groups
+
+The source build advertises `state.guideGroups: true` in `status`. Use a launcher resolving to a group-capable executable and the correct running app. On the 0.2.1 downloadable build the capability is absent. Use the display-coordinate fallback in the spacing audit when needed.
+
+| Command | Result |
+| --- | --- |
+| `group list` | Returns `{"ok":true,"groups":[...]}`. Each entry includes an ID, name, display-local frame and scale on the active display. Names may repeat. |
+| `group create NAME X Y WIDTH HEIGHT` | Create a region inside the display. Successful JSON includes `groupID`. Edges can touch. Interiors must be disjoint. |
+| `group ID status` | Read the group’s frame, scale confirmation, unit, selection, geometry and undo flags in `state`. |
+| `group ID COMMAND ...` | Run `guide`, `gap`, `area`, `select`, `unit`, `calibrate`, `read`, `clear`, `delete`, `undo` or `redo` in that region. |
+
+For example, on a sufficiently large display in Editing, `guides group create Figma 60 180 500 500` creates a pane at display point (60, 180). Use its returned UUID for `$figma_id` below. For visually confirmed display x coordinates 180 and 228, subtract the pane’s left edge (60). With a confirmed effective scale of 200%, these commands return `24px`.
+
+```sh
+guides group "$figma_id" calibrate 200
+guides group "$figma_id" unit design-px
+guides group "$figma_id" gap vertical 120 168
+guides group "$figma_id" read
+```
+
+CLI targeting leaves the user’s active pane selection in place. Ordinary `guide`, `gap`, `area`, `read` and `clear` still address the full display. Group mutations require an editable measurement session and reject an active gesture or group editor. For an uncertain measurement reply, reconcile `group ID status`. For an uncertain create, reconcile `group list`. Use the pane header for renaming, moving, resizing or removing a group.

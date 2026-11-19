@@ -47,3 +47,32 @@ import Testing
     #expect(try groups.group(id).measurements.history.canUndo)
     #expect(throws: CommandLineError.self) { try GuidesCommand.parse(["group", id.uuidString, "hide"]) }
 }
+
+@Test func groupDisplayLifecycleAndSavedLayoutIsolation() throws {
+    let main = DisplayConfiguration(id: 10, size: CGSize(width: 800, height: 600), backingFactor: 2)
+    let other = DisplayConfiguration(id: 20, size: main.size, backingFactor: 2)
+    var displays = DisplaySessions()
+    _ = displays.synchronize([main, other])
+    let initial = displays.activate(main.id, rootPixels: 16)
+    var first = try #require(initial)
+    let id = try first.groups.create(name: "Figma", frame: CGRect(x: 0, y: 0, width: 250, height: 250),
+                                     display: main.size, rootPixels: 16)
+    first.groups.activeID = id
+    displays.save(first)
+    #expect(displays.activate(other.id, rootPixels: 16)?.groups.items.isEmpty == true)
+    let previous = displays.activate(main.id, rootPixels: 20)
+    var resumed = try #require(previous)
+    #expect(resumed.groups.activeID == id)
+    #expect(try resumed.groups.group(id).measurements.calibration.rootPixels == 20)
+    let layout = try SavedLayoutContent(session: resumed, backingFactor: 2)
+    #expect(try layout.restoredSession(rootPixels: 16).groups.items.isEmpty)
+    var recovery = LayoutLoadRecovery()
+    try recovery.load(layout, into: &resumed, on: main)
+    #expect(resumed.groups.activeID == id)
+    resumed.groups.remove(id)
+    try recovery.undo(into: &resumed, on: main)
+    #expect(resumed.groups.items.isEmpty)
+    _ = displays.synchronize([other])
+    _ = displays.synchronize([main, other])
+    #expect(displays.activate(main.id, rootPixels: 16)?.groups.items.isEmpty == true)
+}

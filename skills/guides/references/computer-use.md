@@ -16,6 +16,10 @@ Arrow keys move selected geometry 1 screen pt, Shift moves 10 pt, Option moves 1
 
 Drag a width gap's label up/down or a height gap's label left/right to move only the label and nearby Copy panel. The guide positions/value stay fixed. Escape cancels a drag; otherwise it hides, or first exits reference alignment.
 
+## Two panes at different scales
+
+In a group-capable build, choose **+ Group**, drag around the pane, enter its name and effective scale, then **Done**. Repeat for the other pane. Click in a group to activate it before dragging from the display rulers. Each header identifies its name and calibration, and a checkmark identifies the active group. Click outside the regions to return to full-display measurement. Use the header chevron or **Tools → Guide Groups** to edit a region. Use the active pane’s **Set scale** control for known-size calibration. Each group owns one Area. The optional live corner magnifier is available in the full-display workspace.
+
 ## Other existing tools
 
 | Goal | Current route and important behavior |
