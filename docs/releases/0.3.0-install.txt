@@ -1,0 +1,57 @@
+Guides 0.3.0 preview — Guide Groups and Codex skill
+
+Requires macOS 14 or later. Universal Apple Silicon and Intel build, tested on
+Apple Silicon. Ad hoc signed, without Developer ID signing or notarization.
+
+Install the app
+
+1. Save any layouts you want to keep and quit older copies of Guides. Quitting
+   discards current measurements, groups and calibration.
+2. Drag Guides.app into Applications. Open it and look for the ruler menu.
+3. If macOS blocks the first open and you trust the download, try opening the
+   app once, then use System Settings > Privacy & Security > Open Anyway.
+   Managed Macs may restrict this action. https://support.apple.com/en-us/102445
+
+Try Guide Groups
+
+Arrange Figma and your browser implementation on one display. Choose Edit Guides
+from the ruler menu. Click + Group, drag around one pane, name it, enter its
+effective scale, and click Done. Repeat for the other pane. For an unknown scale,
+leave the field blank, measure a known span and use Set scale > Known size.
+Click inside a pane before pulling guides from the rulers. At Figma 200% and
+implementation 100%, gaps of 48 and 24 screen points respectively both read
+24px. The checkmark identifies the active pane. Pin & work makes it click-through.
+
+Use the CLI
+
+Open Terminal in the extracted folder. Run ./guides launch, then ./guides status.
+Check state.appPath for the running bundle and state.guideGroups for group support.
+After a cold launch, retry read-only status briefly if the app is still starting.
+Use ./guides group list on the active display and ./guides group ID status with a
+returned ID. Group frames use display coordinates. Measurements inside each group
+use screen points relative to its top-left corner. See skills/guides/references/cli.md.
+
+To use the launcher from any folder, copy the executable named guides to a directory
+on PATH such as ~/.local/bin. Review any existing launcher before replacing it.
+The installed launcher can use /Applications/Guides.app. An agent's execution sandbox
+may require its normal command approval for local Mach messaging.
+
+Install or update the optional Codex skill
+
+Copy the included skills/guides directory into ~/.codex/skills so the file ends up at
+~/.codex/skills/guides/SKILL.md. If a guides directory or symlink already exists,
+back it up or move the existing entry aside before copying. Avoid copying through
+an existing symlink or nesting a second guides folder. Restart Codex if needed.
+
+With both panes visible, ask a computer-use-enabled agent:
+    Use $guides to compare the Figma card with the implementation. Measure the
+    visible insets and gaps in each pane and report the differences.
+
+Normal group measurement needs no Guides privacy grant. Groups are scoped to this
+session and stay where you placed them if the page scrolls or the window moves.
+
+Verify the ZIP
+
+Download Guides-0.3.0-SHA256SUMS.txt beside the ZIP and run:
+    shasum -a 256 -c Guides-0.3.0-SHA256SUMS.txt
+The result should end in OK.

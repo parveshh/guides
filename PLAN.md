@@ -544,3 +544,7 @@ Native overlay slice: the selected [pane-header concept](docs/design/guide-group
 The native review identified two edge cases. A pane touching a display ruler now passes ruler hits through to the display canvas. Fractional group origins use the display’s backing-pixel grid for pointer placement, including Area moves. A native hit-test/drag fixture verifies routed ruler input, pixel snapping and Control-drag in an edge-aligned region, and the core suite covers fractional-origin Area motion.
 
 Agent workflow slice: capability discovery chooses native group-local coordinates and independent reads, with the display-coordinate arithmetic fallback for older builds. The usage guide includes the native fixture and instructions for creation, calibration, activation and editing. Regression coverage includes saved-layout isolation and per-display invalidation. Live Figma/browser verification remains open pending a matching pair.
+
+### Downloadable Guide Groups preview (19 November 2026)
+
+Package the reviewed Guide Groups app and updated Codex skill as 0.3.0, build 4, using the existing universal macOS 14+ ad hoc preview process. Include the Figma setup instructions in the ZIP. Verify the extracted bundle, skill parity, signed architectures, native group commands and checksums. After staged review and commit, push the matching tag, round-trip the uploaded draft assets, then publish the pre-release.

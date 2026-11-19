@@ -13,7 +13,7 @@ Place guides, measure an area, copy a value, then **Pin & work** to keep the ove
 ## What it does
 
 - **Measure spacing:** place horizontal or vertical guides and read the gaps between them.
-- **Guide Groups** give each pane its own scale, guides and Area. Available in the current source build. [Compare two panes](docs/USAGE.md#guide-groups)
+- **Guide Groups** give each pane its own scale, guides and Area. [Compare two panes](docs/USAGE.md#guide-groups)
 - **Measure an area:** read width, height and a manually fitted corner radius.
 - **Move measurement labels:** drag a width label up/down or a height label left/right without moving its guides.
 - **Copy for development:** plain values, CSS declarations, Tailwind classes and matching spacing-token variables.
@@ -25,17 +25,17 @@ Guides measures visible distances manually. It does not read CSS, Figma layers o
 
 ## Download and open
 
-Download [Guides 0.2.1 preview](https://github.com/parveshh/guides/releases/tag/v0.2.1). Choose **Guides-0.2.1-macOS-universal.zip**. It includes **Guides.app**, the **guides** CLI launcher, the agent skill and **INSTALL.txt**; the source-code archives contain source only.
+Download [Guides 0.3.0 preview](https://github.com/parveshh/guides/releases/tag/v0.3.0). Choose **Guides-0.3.0-macOS-universal.zip**. It includes **Guides.app**, the **guides** CLI launcher, the agent skill and **INSTALL.txt**; the source-code archives contain source only.
 
 The build includes **Apple Silicon and Intel** code and requires **macOS 14 or later**. Runtime checks were performed on Apple Silicon; Intel and older supported macOS versions still need testing. Xcode is not needed to run the download.
 
-1. Unzip the download and drag **Guides.app** to **Applications**.
-2. Quit any older copy of Guides, then open the installed app.
+1. Save any layouts you want to keep and quit the older copy of Guides.
+2. Unzip the download, drag **Guides.app** to **Applications**, and open it.
 3. Look for the ruler icon in the menu bar. Guides has no Dock icon.
 
 This preview is **ad hoc signed, not Developer ID signed or notarized**. macOS may block its first launch. If you trust this download, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm **Open**. See [Apple's instructions](https://support.apple.com/en-us/102445). No security settings are changed by the app or build script.
 
-The release includes a SHA-256 checksum and [release notes](docs/releases/0.2.1.md). To update, quit old copies and replace the app in Applications with the new copy.
+The release includes a SHA-256 checksum and [release notes](docs/releases/0.3.0.md). To update, quit old copies and replace the app in Applications with the new copy.
 
 ## Build from source
 
@@ -68,7 +68,7 @@ Read the [usage guide](docs/USAGE.md) for controls, calibration, all tools and k
 
 ## CLI and agent skill
 
-The **0.2.1 download** includes direct app commands and a `$guides` skill for CLI or computer use. Open its app, then run `./guides --help` from the unzipped folder. **INSTALL.txt** explains adding the launcher to PATH and installing the skill. Quit old copies once when updating, after saving layouts you want to keep. The original 0.1.0 app does not support CLI commands.
+The **0.3.0 download** includes direct app commands and a `$guides` skill for CLI or computer use. Open its app, then run `./guides --help` from the unzipped folder. **INSTALL.txt** explains adding the launcher to PATH and installing the skill. Quit old copies once when updating, after saving layouts you want to keep. The original 0.1.0 app does not support CLI commands.
 
 Guides keeps one GUI instance per user. Repeated `guides launch` calls reuse its PID/path and preserve the current session; patched app copies also guard direct and simultaneous launches. The skill attaches to that running path. CLI commands use short-lived client processes without creating another menu or overlay.
 
@@ -87,7 +87,7 @@ This places a **64-screen-point width** at supplied coordinates; it does not det
 
 After launch, retry read-only `status` briefly if the app is still starting. An agent's execution sandbox may block local Mach messaging; use its normal command-approval path when needed. No Guides privacy grant is required for the CLI.
 
-With the skill from this checkout and a computer-use-enabled agent, open the Figma frame and the matching browser page and ask:
+With the bundled skill and a computer-use-enabled agent, open the Figma frame and the matching browser page and ask:
 
 > Use $guides to compare the Figma frame on the left with the implementation on the right. Check every visible inset, gap, alignment and component size. Report the Figma value, implementation value and difference, and list anything you couldn't measure.
 

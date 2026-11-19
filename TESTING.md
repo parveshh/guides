@@ -307,3 +307,11 @@ Manual follow-up: open the built app, use the controls in README, and exercise t
 - Two real native ruler drags per pane on synthetic cards give matching 24 px readings at confirmed scales of 200% and 100%. An 8 px implementation change reads 32 px while Figma keeps its 24 px value. The DEBUG fixture uses app-owned views and local events. Run the Debug executable with `--design-snapshots <output-directory> --group-checks-only --documentation-background` to reproduce.
 - The group fixture checks drag-to-create, the editor apply callback, cancellation, ruler hit testing at a pane overlapping the display edge, Control-drag, fractional-origin snapping, clear/undo isolation, Pin and Hide. The existing guide-label gesture regression also passes. The fresh-process CLI smoke test checks the local command transport, capability discovery, both group IDs and ordinary full-display commands.
 - The native Debug and universal Release builds were tested on Apple Silicon. Full VoiceOver, physical gestures, Intel hardware, mixed-display hardware, and a live user-matched Figma/browser pair remain unverified.
+
+## Guide Groups 0.3.0 downloadable preview
+
+All 152 core tests passed. The extracted ZIP contains version 0.3.0, build 4, a CLI launcher, the complete updated skill and INSTALL.txt. Both Mach-O slices declare macOS 14.0 as the minimum. Strict/deep signature verification passed for the ad hoc universal build. The Release executable excludes the DEBUG group fixture flags.
+
+The two launchers printed group help from an extracted directory outside the checkout. The extracted skill tree, standalone launcher and install instructions matched their source files. The fresh-process native CLI suite passed on Apple Silicon, including the 24 px / 24 px two-scale comparison and changing the implementation to 32 px independently. A live Figma frame, Intel runtime, minimum-OS hardware and the browser-download Gatekeeper flow remain unverified.
+
+The release candidate ZIP is 2,726,734 bytes. Its SHA-256 is `10d7d03ce2c65da7d7ba22ca3a9b78f1ef0f6b18079f1db47ce044daa563cd16`. The local checksum check passed. Re-download and compare the assets from the draft before publishing.

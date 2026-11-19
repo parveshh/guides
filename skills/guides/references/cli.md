@@ -51,7 +51,7 @@ The command channel is local Mach messaging scoped to the login user. Other proc
 
 ## Guide Groups
 
-The source build advertises `state.guideGroups: true` in `status`. Use a launcher resolving to a group-capable executable and the correct running app. On the 0.2.1 downloadable build the capability is absent. Use the display-coordinate fallback in the spacing audit when needed.
+Guides 0.3.0 advertises `state.guideGroups: true` in `status`. Use a launcher resolving to a group-capable executable and the correct running app. On the older 0.2.1 build the capability is absent. Use the display-coordinate fallback in the spacing audit when needed.
 
 | Command | Result |
 | --- | --- |
